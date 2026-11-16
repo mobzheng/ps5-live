@@ -102,8 +102,8 @@ const AI_MODEL = cfgStr('OPENAI_MODEL', 'gpt-4o-mini');
 const DEFAULT_DOMAINS = ['contribute.live-video.net', 'live-video.net'];
 
 // Twitch 控制面（API/登录）走本机 443 → Clash 隧道，PS5 上不用填代理
-const PROXY_ENABLE = cfgStr('PROXY_ENABLE', 'auto'); // auto | 1 | 0
-const PROXY_ADDR_CFG = cfgStr('PROXY_ADDR', '');
+let PROXY_ENABLE = cfgStr('PROXY_ENABLE', 'auto'); // auto | 1 | 0
+let PROXY_ADDR_CFG = cfgStr('PROXY_ADDR', '');
 const PROXY_CANDIDATES = ['127.0.0.1:7897', '127.0.0.1:7890', '127.0.0.1:7891', '127.0.0.1:1080', '127.0.0.1:10808'];
 let PROXY_ADDR = PROXY_ADDR_CFG;
 const PROXY_PORT = cfgInt('PROXY_PORT', 443);
@@ -532,6 +532,27 @@ function startProxyServer() {
   proxyServer.listen(PROXY_PORT, '0.0.0.0', () => { proxyError = ''; log(`Twitch 隧道已启动 :${PROXY_PORT} → ${PROXY_ADDR}`); });
 }
 
+function saveProxyCfg(addr, enable) {
+  const p = path.join(STATE_DIR, 'config.json');
+  let cfg = {};
+  try { cfg = JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { /* 新建 */ }
+  cfg.PROXY_ADDR = addr;
+  cfg.PROXY_ENABLE = enable;
+  try { fs.writeFileSync(p, JSON.stringify(cfg, null, 2)); } catch (e) { log('保存代理配置失败: ' + e.message); }
+}
+
+async function applyProxy(addr, enable) {
+  PROXY_ENABLE = enable;
+  PROXY_ADDR_CFG = addr;
+  PROXY_ADDR = addr;
+  if (proxyServer) { try { proxyServer.close(); } catch (_) { /* ignore */ } proxyServer = null; }
+  proxyEnabled = false;
+  proxyError = '';
+  if (enable === '0') return { enabled: false, addr: '', error: '' };
+  await ensureProxy();
+  return { enabled: proxyEnabled, addr: PROXY_ADDR, error: proxyError };
+}
+
 async function ensureProxy() {
   if (PROXY_ENABLE === '0') return;
   if (proxyEnabled) return;
@@ -560,9 +581,14 @@ function startMedia() {
     log('mediamtx 启动失败: ' + e.message);
     return;
   }
+  media.on('error', (e) => {
+    media = null;
+    log('mediamtx 启动失败: ' + (e && e.message ? e.message : e));
+  });
   media.on('exit', (code) => {
     media = null;
     log(`mediamtx 退出 (code=${code})，2 秒后重启`);
+    if (!fs.existsSync(MEDIAMTX_EXE)) return; // 二进制都不在，别无限重试
     setTimeout(startMedia, 2000);
   });
 }
@@ -830,6 +856,36 @@ const server = http.createServer(async (req, res) => {
         lastLiveAt: st.lastLiveAt,
         ai: !!AI_KEY,
       });
+    }
+
+    if (p === '/api/proxy' && req.method === 'GET') {
+      return sendJson(res, 200, {
+        ok: true,
+        enabled: proxyEnabled,
+        addr: PROXY_ADDR,
+        auto: !PROXY_ADDR_CFG,
+        error: proxyError,
+        candidates: PROXY_CANDIDATES,
+      });
+    }
+
+    if (p === '/api/proxy' && req.method === 'POST') {
+      const body = await readBody(req);
+      let addr = '';
+      let enable = 'auto';
+      try {
+        const j = JSON.parse(body || '{}');
+        addr = String(j.addr || '').trim();
+        if (j.enable === false) enable = '0';
+        else if (j.enable === true) enable = '1';
+      } catch (_) { /* ignore */ }
+      if (addr && !/^[^\s:]+:\d{1,5}$/.test(addr)) {
+        return sendJson(res, 400, { ok: false, error: '格式应为 IP:端口，例如 127.0.0.1:7897' });
+      }
+      const r = await applyProxy(addr, enable);
+      saveProxyCfg(addr, enable);
+      log(`Twitch 代理设置为 ${addr || '自动'}，结果 ${r.enabled ? '已连接 ' + r.addr : '未连上'}`);
+      return sendJson(res, 200, { ok: true, enabled: r.enabled, addr: r.addr, error: r.error, auto: !addr });
     }
 
     if (p === '/api/dns-ip' && req.method === 'POST') {
