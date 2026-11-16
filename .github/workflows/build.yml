@@ -43,10 +43,14 @@ jobs:
       - run: node tools/build-engine.mjs
       - run: node tools/build-client.mjs
 
+      - name: 重命名为 ASCII 文件名（GitHub 会吞掉发布会资源里的中文名）
+        shell: pwsh
+        run: Copy-Item 'dist\PS5直播助手.exe' 'dist\PS5Live-Windows.exe' -Force
+
       - name: 生成校验值
         shell: pwsh
         run: |
-          Get-ChildItem dist -File | Where-Object { $_.Name -eq 'PS5直播助手.exe' } | ForEach-Object {
+          Get-ChildItem dist -File | Where-Object { $_.Name -eq 'PS5Live-Windows.exe' } | ForEach-Object {
             $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
             "$h  $($_.Name)"
           } | Out-File -Encoding utf8 dist\SHA256SUMS-windows.txt
@@ -55,7 +59,7 @@ jobs:
         with:
           name: PS5Live-windows-x64
           path: |
-            dist/PS5直播助手.exe
+            dist/PS5Live-Windows.exe
             dist/SHA256SUMS-windows.txt
 
       - name: 发布 Release（仅打 tag 时）
@@ -63,7 +67,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/PS5直播助手.exe
+            dist/PS5Live-Windows.exe
             dist/SHA256SUMS-windows.txt
 
   macos:
