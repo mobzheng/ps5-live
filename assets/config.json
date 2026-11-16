@@ -1,0 +1,12 @@
+{
+  "PORT": 8088,
+  "STAT_URL": "http://127.0.0.1:9997/v3/paths/list",
+  "HLS_PLAYLIST": "http://127.0.0.1:8000/{path}/index.m3u8",
+  "RTMP_PORT": 1935,
+  "DNS_PORT": 53,
+  "LOCAL_IP_DETECT": "1",
+  "MEDIAMTX_EXE": "mediamtx.exe",
+  "MEDIAMTX_CONF": "mediamtx.yml",
+  "DNSMASQ_CONF": "dnsmasq.conf",
+  "LOG_FILE": "panel.log"
+}

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PS5 直播小助手</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1e222b; --line:#2a2f3a;
+    --fg:#f2f4f8; --muted:#9aa4b2; --accent:#4f8cff; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
+    --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 600px at 20% -10%, #1b2440 0%, var(--bg) 55%);
+    color:var(--fg); font:16px/1.6 "PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    min-height:100vh; padding:24px 16px 64px;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:22px}
+  h1{font-size:22px;margin:0;letter-spacing:.5px}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;
+    background:var(--card2);border:1px solid var(--line);font-size:14px;color:var(--muted)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+  .pill.live{color:#c8f7d4;border-color:#1d4d2e;background:#12261a}
+  .pill.live .dot{background:var(--ok);box-shadow:0 0 0 4px rgba(34,197,94,.15);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+  @media(max-width:880px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+  .card h2{margin:0 0 4px;font-size:17px;display:flex;align-items:center;gap:10px}
+  .num{display:inline-flex;width:26px;height:26px;border-radius:8px;background:var(--accent);color:#fff;
+    align-items:center;justify-content:center;font-size:15px;font-weight:700;flex:none}
+  .hint{color:var(--muted);font-size:14px;margin:6px 0 16px}
+  .value{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .value code{font:600 26px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.5px;word-break:break-all}
+  .value.small code{font-size:17px;font-weight:500}
+  button{cursor:pointer;font:inherit;border-radius:10px;border:1px solid var(--line);
+    background:var(--card2);color:var(--fg);padding:9px 16px;transition:.15s}
+  button:hover{border-color:#3d4453;transform:translateY(-1px)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  button.ghost{background:transparent}
+  button:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  details{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+  summary{cursor:pointer;color:var(--accent);font-size:14px;outline:none}
+  ol{margin:10px 0 0;padding-left:22px;color:#cfd6e4;font-size:15px}
+  ol li{margin:6px 0}
+  .banner{margin-bottom:18px;padding:14px 16px;border-radius:12px;
+    background:#2a1f0b;border:1px solid #5a4415;color:#ffd9a0;font-size:15px;
+    display:none;align-items:center;gap:12px;flex-wrap:wrap}
+  .banner.show{display:flex}
+  .banner.err{background:#2a1010;border-color:#5a1a1a;color:#ffb3b3}
+  .checks{display:flex;gap:22px;flex-wrap:wrap;margin-top:16px;color:var(--muted);font-size:14px}
+  .checks b{color:var(--fg);font-weight:600}
+  .ok{color:var(--ok)} .bad{color:var(--err)} .warnc{color:var(--warn)}
+  .preview{position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:16/9}
+  .preview video{width:100%;height:100%;display:block;object-fit:contain}
+  .preview .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#7d8798;font-size:15px;text-align:center;padding:20px}
+  .chat{display:flex;flex-direction:column;height:100%;min-height:260px}
+  .msgs{flex:1;overflow:auto;max-height:340px;display:flex;flex-direction:column;gap:10px;padding:4px 2px 8px}
+  .msg{padding:11px 14px;border-radius:12px;font-size:15px;white-space:pre-wrap;max-width:92%}
+  .msg.me{align-self:flex-end;background:var(--accent);color:#fff}
+  .msg.bot{align-self:flex-start;background:var(--card2);border:1px solid var(--line)}
+  .msg.bot .src{display:block;margin-top:6px;color:var(--muted);font-size:12px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .chips button{font-size:13px;padding:6px 12px;border-radius:999px;color:var(--muted)}
+  .inputrow{display:flex;gap:8px}
+  .inputrow input{flex:1;background:var(--card2);border:1px solid var(--line);color:var(--fg);
+    border-radius:10px;padding:11px 14px;font:inherit;outline:none}
+  .inputrow input:focus{border-color:var(--accent)}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);opacity:0;
+    background:#0b0d12;border:1px solid var(--line);padding:10px 18px;border-radius:999px;
+    font-size:14px;transition:.2s;pointer-events:none}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  .foot{margin-top:18px;color:var(--muted);font-size:13px;text-align:center}
+  .tag{font-size:12px;padding:2px 8px;border-radius:6px;background:#1b2030;color:var(--muted);border:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>PS5 直播小助手</h1>
+    <span class="pill" id="pill"><span class="dot"></span><span id="pillText">正在检测…</span></span>
+    <span class="tag" id="ipTag"></span>
+  </header>
+
+  <div class="banner err" id="errBanner"><span id="errText"></span></div>
+
+  <div class="banner" id="setupBanner">
+    <span id="setupText">还差一步：放行防火墙 + 开机自动启动（只需要点一次“是”）。</span>
+    <button class="primary" id="doInstall">完成设置</button>
+  </div>
+
+  <div class="banner" id="banner">
+    <span id="bannerText"></span>
+    <button class="primary" id="fixIp">修正 DNS 指向</button>
+  </div>
+
+  <div class="grid">
+    <section class="card">
+      <h2><span class="num">1</span>PS5 的 DNS 填这个</h2>
+      <p class="hint">PS5 的直播流量会先到这台电脑，所以要让 PS5 用这台电脑当 DNS。</p>
+      <div class="value">
+        <code id="dnsIp">—</code>
+        <button class="ghost" data-copy="dnsIp">复制</button>
+      </div>
+      <details open>
+        <summary>在 PS5 上怎么填（点开看步骤）</summary>
+        <ol>
+          <li>PS5 主界面 → <b>设置</b> → <b>网络</b> → <b>设定互联网连接</b></li>
+          <li>选中你在用的 Wi-Fi（或 LAN 线）→ 按 <b>选项</b> 键 → <b>详细设定</b></li>
+          <li>找到 <b>DNS 设置</b> → 改成 <b>手动</b> → <b>主 DNS</b> 填上面的 IP</li>
+          <li>保存后重新 <b>测试互联网连接</b>，能连上就成功了</li>
+        </ol>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2><span class="num">2</span>OBS 的播放地址</h2>
+      <p class="hint">PS5 开始直播后，在 OBS 里添加「媒体源」，把地址粘进去就能看。地址永远不变。</p>
+      <div class="value small">
+        <code id="obsUrl">—</code>
+        <button class="ghost" data-copy="obsUrl">复制</button>
+      </div>
+      <div class="btnrow">
+        <button class="ghost" id="copyRtmp" disabled>低延迟地址需 PS5 先开播</button>
+      </div>
+      <details>
+        <summary>OBS 怎么加 / 低延迟怎么选</summary>
+        <ol>
+          <li>OBS → 来源 → <b>+</b> → <b>媒体源</b> → 新建</li>
+          <li>取消勾选「本地文件」，在 <b>输入</b> 里粘贴上面的地址</li>
+          <li>勾选 <b>重新连接</b>（重要：这样 PS5 开始/结束直播都能自动接）</li>
+          <li>想要更低的延迟（约 1–2 秒）：改用 <b>VLC 视频源</b>，填 RTMP 地址</li>
+        </ol>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>实时画面</h2>
+      <p class="hint" id="previewHint">PS5 开始直播后会在这里出现画面（约 5–10 秒延迟）。</p>
+      <div class="preview">
+        <video id="video" controls playsinline muted autoplay></video>
+        <div class="empty" id="empty">还没有画面</div>
+      </div>
+      <div class="checks" id="checks"></div>
+    </section>
+
+    <section class="card">
+      <h2>问一句</h2>
+      <p class="hint">不知道哪里没弄对，直接问，它知道现在的 IP 和直播状态。</p>
+      <div class="chat">
+        <div class="chips">
+          <button data-q="PS5 的 DNS 怎么填？">DNS 怎么填</button>
+          <button data-q="OBS 怎么加？">OBS 怎么加</button>
+          <button data-q="没画面怎么办？">没画面</button>
+          <button data-q="现在是什么状态？">现在状态</button>
+        </div>
+        <div class="msgs" id="msgs">
+          <div class="msg bot">你好，我是这台直播机的助手。左边两条照做就能用，弄不明白随时问我。</div>
+        </div>
+        <div class="inputrow">
+          <input id="q" placeholder="比如：PS5 那边要怎么设置？" autocomplete="off">
+          <button class="primary" id="send">发送</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <p class="foot">PS5 推流 → 本机 DNS 劫持 → 本机接流 → 本页面 / OBS。全程不用采集卡。</p>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="/hls.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { live: false, name: '', ip: '', urls: {} };
+  var hls = null;
+
+  function toast(msg) {
+    var t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._t);
+    t._t = setTimeout(function () { t.classList.remove('show'); }, 1500);
+  }
+
+  function copy(text) {
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); toast('已复制'); } catch (e) { toast('复制失败，请手动选中'); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(function () { toast('已复制'); }, fallback);
+    } else { fallback(); }
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-copy]');
+    if (btn) { copy($(btn.getAttribute('data-copy')).textContent.trim()); }
+  });
+
+  $('copyRtmp').addEventListener('click', function () {
+    if (state.urls.rtmp) copy(state.urls.rtmp); else toast('PS5 还没开播');
+  });
+
+  function fmtTime(s) {
+    if (!s) return '';
+    var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+    return (h ? h + ' 时 ' : '') + m + ' 分 ' + sec + ' 秒';
+  }
+
+  function render(d) {
+    state.ip = d.ip; state.urls = d.urls || {};
+    var s = d.stream || {};
+
+    $('dnsIp').textContent = d.configuredIp || d.ip;
+    $('ipTag').textContent = '本机 IP ' + d.ip;
+    $('obsUrl').textContent = d.urls.hls;
+    $('copyRtmp').disabled = !s.live;
+    $('copyRtmp').textContent = s.live ? '复制低延迟地址（RTMP）' : '低延迟地址需 PS5 先开播';
+
+    var pill = $('pill');
+    if (s.live) {
+      pill.classList.add('live');
+      $('pillText').textContent = '正在直播' + (s.time ? ' · ' + fmtTime(s.time) : '');
+    } else {
+      pill.classList.remove('live');
+      $('pillText').textContent = d.lastLiveAt ? '等待 PS5 开始直播' : '还没有开始直播';
+    }
+
+    var details = [];
+    if (s.video) details.push(s.video.width + '×' + s.video.height + (s.video.fps ? '@' + Math.round(s.video.fps) : ''));
+    if (s.bwIn) details.push((s.bwIn * 8 / 1e6).toFixed(1) + ' Mbps');
+    $('previewHint').textContent = s.live
+      ? '正在播放：' + (details.join(' · ') || '直播中') + '（约 5–10 秒延迟）'
+      : 'PS5 开始直播后会在这里出现画面（约 5–10 秒延迟）。';
+
+    var checks = [];
+    checks.push('<span>DNS 劫持 <b class="' + (d.dns && d.dns.ok ? 'ok' : 'bad') + '">' + (d.dns && d.dns.ok ? '正常' : '异常') + '</b></span>');
+    checks.push('<span>RTMP 端口 <b class="' + (d.rtmpOk ? 'ok' : 'bad') + '">' + (d.rtmpOk ? '通' : '不通') + '</b></span>');
+    checks.push('<span>观看人数 <b>' + (s.clients || 0) + '</b></span>');
+    if (d.dns && d.dns.ips && d.dns.ips.length) checks.push('<span>解析结果 <b>' + d.dns.ips.join(', ') + '</b></span>');
+    $('checks').innerHTML = checks.join('');
+
+    if (d.installed === false) { $('setupBanner').classList.add('show'); } else { $('setupBanner').classList.remove('show'); }
+
+    if (d.dnsBindError) {
+      $('errBanner').classList.add('show');
+      $('errText').textContent = 'DNS 服务没起来：' + d.dnsBindError + '。双击「一键安装.cmd」修复，或停掉 Windows 的移动热点/网络共享。';
+    } else {
+      $('errBanner').classList.remove('show');
+    }
+
+    if (d.ipMismatch) {
+      $('banner').classList.add('show');
+      $('bannerText').textContent = '这台电脑现在的 IP 是 ' + d.ip + '，但 DNS 还指向 ' + d.configuredIp + '。点右边一键改好（PS5 里的 DNS 也要跟着改成 ' + d.ip + '）。';
+    } else {
+      $('banner').classList.remove('show');
+    }
+
+    syncPlayer(s);
+  }
+
+  function syncPlayer(s) {
+    var v = $('video');
+    $('empty').style.display = s.live ? 'none' : 'flex';
+    if (s.live) {
+      if (window.Hls && window.Hls.isSupported()) {
+        if (!hls) {
+          hls = new Hls({ lowLatencyMode: false });
+          hls.on(Hls.Events.MANIFEST_PARSED, function () { v.play().catch(function () {}); });
+          hls.loadSource('/live.m3u8');
+          hls.attachMedia(v);
+        }
+      } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+        if (v.getAttribute('src') !== '/live.m3u8') v.src = '/live.m3u8';
+      }
+    } else if (hls) {
+      hls.destroy(); hls = null;
+      v.removeAttribute('src'); v.load();
+    }
+  }
+
+  function poll() {
+    fetch('/api/status', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.ok) render(d); })
+      .catch(function () { $('pillText').textContent = '面板连不上'; })
+      .then(function () { setTimeout(poll, 2500); });
+  }
+
+  $('fixIp').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    fetch('/api/dns-ip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ip: state.ip })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d.ok) toast('DNS 已指向 ' + d.ip + (d.reloaded ? '，已重载' : '，需手动重启 dnsmasq'));
+      else toast(d.error || '修改失败');
+    }).catch(function () { toast('修改失败'); })
+      .then(function () { btn.disabled = false; });
+  });
+
+  function addMsg(text, who, src) {
+    var div = document.createElement('div');
+    div.className = 'msg ' + who;
+    div.textContent = text;
+    if (src) {
+      var s = document.createElement('span');
+      s.className = 'src';
+      s.textContent = src === 'ai' ? 'AI 回答' : '内置回答';
+      div.appendChild(s);
+    }
+    $('msgs').appendChild(div);
+    $('msgs').scrollTop = $('msgs').scrollHeight;
+  }
+
+  function ask(q) {
+    if (!q.trim()) return;
+    addMsg(q, 'me');
+    $('q').value = '';
+    var btn = $('send'); btn.disabled = true;
+    fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: q })
+    }).then(function (r) { return r.json(); })
+      .then(function (d) {
+        addMsg(d.ok ? (d.text + (d.note ? '\n\n（' + d.note + '）' : '')) : ('出错了：' + (d.error || '')), 'bot', d.source);
+      })
+      .catch(function () { addMsg('面板连不上，稍后再试。', 'bot'); })
+      .then(function () { btn.disabled = false; });
+  }
+
+  $('doInstall').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    fetch('/api/install', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (d) {
+      toast(d.ok ? '已发起设置，请在弹出的窗口点“是”' : (d.error || '设置失败'));
+    }).catch(function () { toast('设置失败'); })
+      .then(function () { setTimeout(function () { btn.disabled = false; }, 5000); });
+  });
+
+  $('send').addEventListener('click', function () { ask($('q').value); });
+  $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') ask($('q').value); });
+  Array.prototype.forEach.call(document.querySelectorAll('.chips button'), function (b) {
+    b.addEventListener('click', function () { ask(b.getAttribute('data-q')); });
+  });
+
+  poll();
+})();
+</script>
+</body>
+</html>

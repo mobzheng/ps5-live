@@ -1,0 +1,36 @@
+# PS5 直播小助手 —— 接流/HLS 服务（MediaMTX v1.11.3）
+# 只开 RTMP 接流 + HLS 输出，其余协议全部关掉，减少暴露面。
+# HLS 切片只给本机面板读，不对外暴露（面板负责转发给 OBS / 浏览器）。
+
+logLevel: warn
+logDestinations: [stdout]
+
+# 只给本机面板读状态用
+api: yes
+apiAddress: 127.0.0.1:9997
+
+metrics: no
+pprof: no
+playback: no
+
+rtsp: no
+srt: no
+webrtc: no
+
+# PS5 推流进来
+rtmp: yes
+rtmpAddress: :1935
+
+# HLS 输出（由面板代理，端口不对外）
+hls: yes
+hlsAddress: :8000
+hlsVariant: mpegts
+hlsSegmentCount: 5
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+hlsAlwaysRemux: yes
+hlsMuxerCloseAfter: 30s
+
+# 任意路径名都接受（PS5 的流名每次随机）
+paths:
+  all_others:

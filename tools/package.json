@@ -1,0 +1,9 @@
+{
+  "name": "ps5-live-tools",
+  "private": true,
+  "version": "1.0.0",
+  "description": "构建脚本依赖",
+  "devDependencies": {
+    "postject": "1.0.0-alpha.6"
+  }
+}

@@ -1,0 +1,15 @@
+# 构建产物
+dist/
+tools/build-engine/
+tools/build-client/
+tools/cache/
+
+# 构建时下载的二进制
+assets/mediamtx.exe
+
+# 运行日志 / 进程文件
+*.log
+*.pid
+
+# 构建依赖
+tools/node_modules/
