@@ -90,3 +90,33 @@ git tag v1.0.0 && git push origin v1.0.0
 
 - 面板没有登录，只监听 `127.0.0.1`，只有本机能开窗口。
 - RTMP 1935 允许局域网任意设备推流；只自用时可把 `assets/mediamtx.yml` 的 `paths` 收窄为指定流名。
+
+## macOS
+
+产物：`PS5Live-macos-arm64.zip`（Apple Silicon）/ `PS5Live-macos-x64.zip`（Intel）。
+
+1. 解压，把 `PS5直播小助手.app` 拖进「应用程序」。
+2. 第一次打开：右键 → **打开**（未签名，Gatekeeper 会拦一次）。
+3. 弹窗要求管理员授权 → 点“好”/输入密码：把引擎装成后台服务并开机自启（`/Library/LaunchDaemons/com.ps5live.engine.plist`）。
+4. 窗口出现后用法和 Windows 一样：第 1 张卡的 IP 填进 PS5 的 DNS，第 2 张卡给 OBS。
+
+说明：
+
+- macOS 上 53 端口必须 root 才能监听，所以引擎是 LaunchDaemon；窗口关掉服务仍在跑。
+- 日志：`/var/log/ps5live.log`（引擎）、`/Library/Application Support/PS5Live/`（配置与数据）。
+- 卸载：`sudo launchctl bootout system/com.ps5live.engine && sudo rm -rf "/Library/Application Support/PS5Live" /Library/LaunchDaemons/com.ps5live.engine.plist`
+- 本地构建（需要 Xcode Command Line Tools）：
+  ```bash
+  npm i --prefix tools
+  node tools/build-engine.mjs      # → dist/engine（内含 mediamtx）
+  node tools/build-macos.mjs       # → dist/PS5Live-macos-<arch>.zip
+  ```
+
+## CI 产物
+
+| 平台 | 产物 | 说明 |
+|---|---|---|
+| Windows | `PS5直播助手.exe` | 单文件桌面客户端（内嵌引擎） |
+| macOS | `PS5Live-macos-arm64.zip` / `-x64.zip` | .app + 内嵌引擎 |
+
+Windows 用 `windows-latest` + 系统自带 .NET Framework/csc；macOS 用 `macos-14`，两个架构的 node 与 mediamtx 都在 CI 里下载并校验 sha256（本机无法运行 macOS，所以 mac 侧只做了编译产物与流程验证）。

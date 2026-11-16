@@ -12,57 +12,51 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  MEDIAMTX_VERSION: '1.11.3'
+  MEDIAMTX_WIN_SHA: 'f9c690556fbe0eb8d409aea5c1ae48af16d985a80db12a58c2793e15e0f3c4de'
+  MEDIAMTX_MAC_ARM64_SHA: 'd7dc40c84f0099deb604f6cac39c6d58ef4d8d0d18645af3ea07e6da779b06c2'
+  MEDIAMTX_MAC_AMD64_SHA: 'e0cfd7a4ee85a06c6ac2f76673441a8d793cfdd4f2a71a28f87e03f88b7748ab'
+
 jobs:
   windows:
     runs-on: windows-latest
-    env:
-      MEDIAMTX_VERSION: '1.11.3'
-      MEDIAMTX_SHA256: 'f9c690556fbe0eb8d409aea5c1ae48af16d985a80db12a58c2793e15e0f3c4de'
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
 
-      - name: 下载 mediamtx 并校验 sha256
+      - name: 下载 mediamtx 并校验
         shell: pwsh
         run: |
           $ver = $env:MEDIAMTX_VERSION
           $file = "mediamtx_v${ver}_windows_amd64.zip"
-          $url = "https://github.com/bluenviron/mediamtx/releases/download/v${ver}/$file"
-          Invoke-WebRequest -Uri $url -OutFile $file
+          Invoke-WebRequest -Uri "https://github.com/bluenviron/mediamtx/releases/download/v${ver}/$file" -OutFile $file
           $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
-          if ($hash -ne $env:MEDIAMTX_SHA256) { throw "mediamtx 校验失败：$hash" }
+          if ($hash -ne $env:MEDIAMTX_WIN_SHA) { throw "mediamtx 校验失败：$hash" }
           Expand-Archive $file -DestinationPath mtx
           New-Item -ItemType Directory -Force assets | Out-Null
           Copy-Item mtx\mediamtx.exe assets\mediamtx.exe
 
-      - name: 安装构建依赖
-        run: npm ci --prefix tools
-
-      - name: 构建后台引擎（Node SEA）
-        run: node tools/build-engine.mjs
-
-      - name: 构建桌面客户端（内嵌引擎 + WebView2）
-        run: node tools/build-client.mjs
+      - run: npm ci --prefix tools
+      - run: node tools/build-engine.mjs
+      - run: node tools/build-client.mjs
 
       - name: 生成校验值
         shell: pwsh
         run: |
-          Get-ChildItem dist -File | Where-Object { $_.Name -ne 'engine.exe' } | ForEach-Object {
+          Get-ChildItem dist -File | Where-Object { $_.Name -eq 'PS5直播助手.exe' } | ForEach-Object {
             $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
             "$h  $($_.Name)"
-          } | Out-File -Encoding utf8 dist\SHA256SUMS.txt
-          Get-Content dist\SHA256SUMS.txt
+          } | Out-File -Encoding utf8 dist\SHA256SUMS-windows.txt
 
       - uses: actions/upload-artifact@v4
         with:
           name: PS5Live-windows-x64
           path: |
             dist/PS5直播助手.exe
-            dist/SHA256SUMS.txt
-          if-no-files-found: error
+            dist/SHA256SUMS-windows.txt
 
       - name: 发布 Release（仅打 tag 时）
         if: startsWith(github.ref, 'refs/tags/')
@@ -70,7 +64,67 @@ jobs:
         with:
           files: |
             dist/PS5直播助手.exe
-            dist/SHA256SUMS.txt
-          body: |
-            下载 `PS5直播助手.exe` 双击即可。
-            第一次使用点窗口里的「完成设置」，在弹出的系统窗口点“是”（只弹一次）。
+            dist/SHA256SUMS-windows.txt
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载 mediamtx（arm64 + x64）并校验
+        run: |
+          ver="$MEDIAMTX_VERSION"
+          for a in arm64 amd64; do
+            file="mediamtx_v${ver}_darwin_${a}.tar.gz"
+            curl -fsSLo "$file" "https://github.com/bluenviron/mediamtx/releases/download/v${ver}/$file"
+            if [ "$a" = "arm64" ]; then want="$MEDIAMTX_MAC_ARM64_SHA"; else want="$MEDIAMTX_MAC_AMD64_SHA"; fi
+            got=$(shasum -a 256 "$file" | cut -d' ' -f1)
+            [ "$got" = "$want" ] || { echo "mediamtx $a 校验失败：$got"; exit 1; }
+            tar xzf "$file"
+            mkdir -p assets
+            mv mediamtx "assets/mediamtx-darwin-$a"
+          done
+
+      - name: 下载对应架构的 node（用于内嵌）
+        run: |
+          V=$(curl -fsSL https://nodejs.org/dist/index.json | jq -r '[.[] | select(.version | startswith("v24."))][0].version')
+          echo "node $V"
+          for a in x64 arm64; do
+            curl -fsSLo "node-$a.tar.gz" "https://nodejs.org/dist/$V/node-$V-darwin-$a.tar.gz"
+            tar xzf "node-$a.tar.gz"
+          done
+
+      - run: npm ci --prefix tools
+
+      - name: 构建引擎（arm64 + x64）
+        run: |
+          NODE_BIN=node-v*-darwin-arm64/bin/node MEDIAMTX_PATH=assets/mediamtx-darwin-arm64 OUT_NAME=engine-arm64 node tools/build-engine.mjs
+          NODE_BIN=node-v*-darwin-x64/bin/node MEDIAMTX_PATH=assets/mediamtx-darwin-amd64 OUT_NAME=engine-x64 node tools/build-engine.mjs
+
+      - name: 打包 .app（arm64 + x64）
+        run: |
+          ENGINE=dist/engine-arm64 TARGET_ARCH=arm64 node tools/build-macos.mjs
+          ENGINE=dist/engine-x64 TARGET_ARCH=x64 node tools/build-macos.mjs
+
+      - name: 生成校验值
+        run: |
+          cd dist
+          shasum -a 256 PS5Live-macos-*.zip > SHA256SUMS-macos.txt
+          cat SHA256SUMS-macos.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PS5Live-macos
+          path: |
+            dist/PS5Live-macos-arm64.zip
+            dist/PS5Live-macos-x64.zip
+            dist/SHA256SUMS-macos.txt
+
+      - name: 发布 Release（仅打 tag 时）
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/PS5Live-macos-arm64.zip
+            dist/PS5Live-macos-x64.zip
+            dist/SHA256SUMS-macos.txt

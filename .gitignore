@@ -13,3 +13,8 @@ assets/mediamtx.exe
 
 # 构建依赖
 tools/node_modules/
+
+# CI 临时下载
+node-v*-darwin-*/
+*.tar.gz
+*.zip

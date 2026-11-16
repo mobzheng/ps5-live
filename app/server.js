@@ -23,9 +23,18 @@ const { spawn, execFile } = require('child_process');
 /* -------------------------------- 运行环境 -------------------------------- */
 const sea = (() => { try { return require('node:sea'); } catch (_) { return null; } })();
 const IS_SEA = !!(sea && typeof sea.isSea === 'function' && sea.isSea());
-const STATE_DIR = IS_SEA
-  ? path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'PS5Live')
-  : path.resolve(__dirname, '..');
+const IS_WIN = process.platform === 'win32';
+const IS_MAC = process.platform === 'darwin';
+
+function defaultStateDir() {
+  if (!IS_SEA) return path.resolve(__dirname, '..');
+  if (IS_WIN) return path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'PS5Live');
+  // macOS：安装后后台守护进程以 root 运行，状态放系统目录；直接运行时退回用户目录
+  const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+  if (IS_MAC && isRoot) return '/Library/Application Support/PS5Live';
+  return path.join(os.homedir(), 'Library', 'Application Support', 'PS5Live');
+}
+const STATE_DIR = process.env.PS5LIVE_HOME || defaultStateDir();
 
 function seaAssetText(name) {
   return Buffer.from(sea.getAsset(name)).toString('utf8');
@@ -35,7 +44,7 @@ function seaAssetText(name) {
 function extractRuntime() {
   if (!IS_SEA) return;
   fs.mkdirSync(STATE_DIR, { recursive: true });
-  const mtx = path.join(STATE_DIR, 'mediamtx.exe');
+  const mtx = path.join(STATE_DIR, IS_WIN ? 'mediamtx.exe' : 'mediamtx');
   const want = Buffer.from(sea.getAsset('mediamtx.exe'));
   let need = true;
   try { need = fs.statSync(mtx).size !== want.length; } catch (_) { need = true; }
@@ -44,6 +53,7 @@ function extractRuntime() {
     fs.writeFileSync(tmp, want);
     try { fs.unlinkSync(mtx); } catch (_) { /* ignore */ }
     fs.renameSync(tmp, mtx);
+    if (!IS_WIN) { try { fs.chmodSync(mtx, 0o755); } catch (_) { /* ignore */ } }
   }
   for (const name of ['mediamtx.yml', 'config.json', 'dnsmasq.conf']) {
     const p = path.join(STATE_DIR, name);
@@ -83,7 +93,7 @@ const HLS_PLAYLIST = cfgStr('HLS_PLAYLIST', 'http://127.0.0.1:8000/{path}/index.
 const RTMP_PORT = cfgInt('RTMP_PORT', 1935);
 const DNS_PORT = cfgInt('DNS_PORT', 53);
 const LOCAL_IP_DETECT = /^(1|true|yes|on)$/i.test(cfgStr('LOCAL_IP_DETECT', '1'));
-const MEDIAMTX_EXE = cfgPath('MEDIAMTX_EXE', path.join(STATE_DIR, 'mediamtx.exe'));
+const MEDIAMTX_EXE = cfgPath('MEDIAMTX_EXE', path.join(STATE_DIR, IS_WIN ? 'mediamtx.exe' : 'mediamtx'));
 const MEDIAMTX_CONF = cfgPath('MEDIAMTX_CONF', path.join(STATE_DIR, 'mediamtx.yml'));
 const CLIENT_EXE = (process.env.PS5LIVE_CLIENT || '').trim();
 const AI_KEY = (process.env.OPENAI_API_KEY || '').trim();
@@ -137,6 +147,25 @@ function refreshNet() {
   if (!LOCAL_IP_DETECT || netPending) return;
   if (netCache.at && Date.now() - netCache.at < 4 * 60000) return;
   netPending = true;
+  if (IS_MAC) {
+    const script = [
+      'ifc=$(route -n get default 2>/dev/null | awk \'/interface:/{print $2}\')',
+      'gw=$(route -n get default 2>/dev/null | awk \'/gateway:/{print $2}\')',
+      'ip=$(ipconfig getifaddr "$ifc" 2>/dev/null)',
+      'printf "%s|%s\\n" "$ip" "$gw"',
+    ].join('; ');
+    execFile('/bin/sh', ['-c', script], { encoding: 'utf8', timeout: 20000 }, (err, stdout) => {
+      netPending = false;
+      netCache.at = Date.now();
+      if (err || !stdout) return;
+      const parts = String(stdout).trim().split('|');
+      const ip = (parts[0] || '').trim();
+      const gw = (parts[1] || '').trim();
+      if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(ip)) netCache.ip = ip;
+      if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(gw)) netCache.gw = gw;
+    });
+    return;
+  }
   const ps = [
     '$r = Get-NetRoute -DestinationPrefix 0.0.0.0/0 -ErrorAction SilentlyContinue | Sort-Object RouteMetric | Select-Object -First 1;',
     'if ($r) { $a = (Get-NetIPAddress -AddressFamily IPv4 -InterfaceIndex $r.InterfaceIndex -ErrorAction SilentlyContinue | Select-Object -First 1).IPAddress;',
@@ -337,7 +366,9 @@ function startEmbeddedDns() {
   sock.on('error', (e) => {
     dnsBound = false;
     dnsBindError = e.code === 'EADDRINUSE'
-      ? `端口 ${DNS_PORT} 被占用（常见原因：Windows「网络共享/移动热点」占着 53）`
+      ? (IS_MAC
+        ? `端口 ${DNS_PORT} 被占用（macOS 需要以 root 运行才能监听 53；请用安装程序装成后台服务）`
+        : `端口 ${DNS_PORT} 被占用（常见原因：Windows「网络共享/移动热点」占着 53）`)
       : String(e.message || e);
     log('DNS 监听失败: ' + dnsBindError + '，5 秒后重试');
     try { sock.close(); } catch (_) { /* ignore */ }
