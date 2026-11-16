@@ -6,290 +6,282 @@
 <title>PS5 直播小助手</title>
 <style>
   :root{
-    --bg:#08080a;
-    --surface:#111114;
-    --surface-2:#17171b;
+    --bg:#0a0a0c;
+    --panel:#101013;
+    --panel-2:#16161a;
     --line:#232329;
-    --line-strong:#33333c;
+    --line-2:#33333c;
     --fg:#f4f4f6;
     --fg-2:#a1a1aa;
-    --fg-3:#71717a;
+    --fg-3:#6f6f7a;
     --accent:#6366f1;
-    --accent-soft:rgba(99,102,241,.14);
     --ok:#3ecf8e;
     --warn:#f5a524;
     --err:#f31260;
     --mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,Consolas,monospace;
-    --radius:14px;
+    --r:12px;
     --ring:0 0 0 2px var(--bg),0 0 0 4px var(--accent);
   }
   *{box-sizing:border-box}
-  html,body{margin:0;padding:0;background:var(--bg);color:var(--fg)}
+  html,body{height:100%;margin:0}
   body{
-    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
-    -webkit-font-smoothing:antialiased;
-    min-height:100vh;
-    padding:28px 20px 56px;
-    background:
-      radial-gradient(760px 380px at 12% -8%, rgba(99,102,241,.16), transparent 60%),
-      radial-gradient(620px 320px at 92% 4%, rgba(62,207,142,.07), transparent 60%),
-      var(--bg);
-    background-attachment:fixed;
+    background:var(--bg);color:var(--fg);
+    font:14.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;overflow:hidden;
   }
-  .wrap{max-width:1060px;margin:0 auto}
-  a{color:var(--accent)}
+  button{font:inherit;color:inherit}
   :focus-visible{outline:none;box-shadow:var(--ring);border-radius:8px}
 
-  /* top bar */
-  .top{display:flex;align-items:center;gap:14px;margin-bottom:26px;flex-wrap:wrap}
-  .mark{width:34px;height:34px;border-radius:10px;flex:none;display:grid;place-items:center;
-    background:linear-gradient(145deg,#6366f1,#4338ca);box-shadow:0 6px 18px rgba(79,70,229,.35)}
-  .brand{display:flex;flex-direction:column;gap:2px}
-  .brand b{font-size:15px;font-weight:600;letter-spacing:.2px}
-  .brand span{font-size:12.5px;color:var(--fg-3);font-family:var(--mono)}
-  .pill{margin-left:auto;display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;
-    border:1px solid var(--line);background:var(--surface);color:var(--fg-2);font-size:13px;white-space:nowrap}
+  /* ---------- 框架 ---------- */
+  .app{height:100%;display:grid;grid-template-rows:auto 1fr}
+  header{
+    display:flex;align-items:center;gap:12px;padding:12px 16px;
+    border-bottom:1px solid var(--line);background:rgba(10,10,12,.9);backdrop-filter:blur(8px)
+  }
+  .mark{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none;
+    background:linear-gradient(145deg,#6366f1,#4338ca);box-shadow:0 4px 14px rgba(79,70,229,.35)}
+  .title{font-size:13.5px;font-weight:600;letter-spacing:.2px;white-space:nowrap}
+  .title span{display:block;font-size:11.5px;color:var(--fg-3);font-family:var(--mono);font-weight:400}
+  .grow{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+    border:1px solid var(--line);background:var(--panel);color:var(--fg-2);font-size:12.5px;white-space:nowrap}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--fg-3);flex:none}
-  .pill.live{color:#b8f5d6;border-color:rgba(62,207,142,.35);background:rgba(62,207,142,.10)}
-  .pill.live .dot{background:var(--ok);box-shadow:0 0 0 4px rgba(62,207,142,.14);animation:pulse 1.8s ease-in-out infinite}
+  .pill.active{color:#b8f5d6;border-color:rgba(62,207,142,.32);background:rgba(62,207,142,.1)}
+  .pill.active .dot{background:var(--ok);box-shadow:0 0 0 4px rgba(62,207,142,.13);animation:pulse 1.8s ease-in-out infinite}
+  .pill.warn{color:#f7d9a4;border-color:rgba(245,165,36,.3);background:rgba(245,165,36,.1)}
+  .pill.warn .dot{background:var(--warn)}
+  .pill.ready{color:#c9d3ff;border-color:rgba(99,102,241,.35);background:rgba(99,102,241,.12)}
+  .pill.ready .dot{background:var(--accent)}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .ghost{height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:transparent;
+    color:var(--fg-2);font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.12s}
+  .ghost:hover{color:var(--fg);border-color:var(--line-2);background:rgba(255,255,255,.03)}
+  .ghost svg{width:14px;height:14px}
 
-  /* banner */
-  .banner{display:none;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;padding:12px 16px;
-    border-radius:12px;font-size:13.5px;border:1px solid rgba(245,165,36,.3);background:rgba(245,165,36,.08);color:#f7d9a4}
-  .banner.show{display:flex}
-  .banner.danger{border-color:rgba(243,18,96,.32);background:rgba(243,18,96,.08);color:#ffc2d4}
-  .banner .grow{flex:1;min-width:220px}
+  main{display:grid;grid-template-columns:1fr 306px;min-height:0}
+  @media(max-width:860px){
+    main{grid-template-columns:1fr;grid-template-rows:1fr auto;overflow:auto}
+    body{overflow:auto}
+  }
 
-  /* grid */
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
-  @media(max-width:900px){.grid{grid-template-columns:1fr}}
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px 20px 18px;
-    transition:border-color .12s ease,transform .12s ease}
-  .card:hover{border-color:var(--line-strong)}
-  .card.full{grid-column:1/-1}
-  .head{display:flex;align-items:center;gap:8px;margin-bottom:2px}
-  .step{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;flex:none;
-    background:var(--accent-soft);color:#c7c9ff;font-size:11px;font-weight:600;font-family:var(--mono)}
-  .head h2{margin:0;font-size:14px;font-weight:600;letter-spacing:.2px}
-  .sub{margin:6px 0 16px;color:var(--fg-2);font-size:13px;line-height:1.5}
+  /* ---------- 预览 ---------- */
+  .stage{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;padding:16px 16px 0}
+  .screen{position:relative;flex:1;min-height:180px;border-radius:var(--r);overflow:hidden;
+    background:#000;border:1px solid var(--line)}
+  .screen video{width:100%;height:100%;display:block;object-fit:contain}
+  .screen .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    color:var(--fg-3);font-size:13px;text-align:center;padding:24px}
+  .screen .empty svg{width:34px;height:34px;opacity:.5}
+  .screen .empty b{color:var(--fg-2);font-weight:500;font-size:14px}
+  .statusbar{display:flex;align-items:center;gap:14px;padding:11px 2px;font-size:12px;color:var(--fg-3);flex-wrap:wrap}
+  .statusbar .kv{display:inline-flex;align-items:center;gap:6px}
+  .statusbar b{color:var(--fg-2);font-weight:500}
+  .sep{width:1px;height:10px;background:var(--line-2)}
 
-  /* value blocks */
-  .value{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);
-    border-radius:10px;background:var(--surface-2);min-height:56px}
-  .value code{flex:1;font-family:var(--mono);font-size:24px;letter-spacing:.4px;color:#fff;
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .value.sm code{font-size:14px;color:#e8e8ee;font-weight:500}
-  .iconbtn{flex:none;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:8px;
-    border:1px solid var(--line);background:transparent;color:var(--fg-2);font:inherit;font-size:12.5px;cursor:pointer;
-    transition:.12s ease}
-  .iconbtn:hover{color:var(--fg);border-color:var(--line-strong);background:rgba(255,255,255,.03)}
-  .iconbtn:disabled{opacity:.45;cursor:not-allowed}
-  .iconbtn svg{width:14px;height:14px}
+  /* ---------- 右侧栏 ---------- */
+  aside{border-left:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto}
+  .sect{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--fg-3);margin:2px 0 2px}
+  .copyrow{display:flex;align-items:center;gap:8px;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+  .copyrow .txt{flex:1;min-width:0}
+  .copyrow .lab{display:block;font-size:11px;color:var(--fg-3)}
+  .copyrow code{display:block;font-family:var(--mono);font-size:12.5px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .copyrow.big code{font-size:17px;letter-spacing:.3px}
+  .copyrow.wrap code{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
+  .copybtn{flex:none;width:26px;height:26px;border-radius:7px;border:1px solid var(--line);background:transparent;
+    color:var(--fg-2);display:grid;place-items:center;cursor:pointer;transition:.12s}
+  .copybtn:hover{color:var(--fg);border-color:var(--line-2)}
+  .copybtn svg{width:13px;height:13px}
+  .next{padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:12.5px;color:var(--fg-2);line-height:1.6}
+  .next b{color:var(--fg);font-weight:600}
+  .next .k{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--fg-3);margin-bottom:4px}
+  kbd{font-family:var(--mono);font-size:11px;padding:1px 5px;border-radius:4px;border:1px solid var(--line-2);background:var(--panel-2);color:#d6d6dd}
+  .alert{display:none;padding:10px 11px;border-radius:10px;font-size:12.5px;line-height:1.55}
+  .alert.show{display:block}
+  .alert.warn{border:1px solid rgba(245,165,36,.3);background:rgba(245,165,36,.08);color:#f7d9a4}
+  .alert.err{border:1px solid rgba(243,18,96,.3);background:rgba(243,18,96,.08);color:#ffc2d4}
+  .alert button{margin-top:8px}
 
-  details{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
-  summary{cursor:pointer;color:var(--fg-2);font-size:13px;list-style:none;display:flex;align-items:center;gap:6px}
-  summary::-webkit-details-marker{display:none}
-  summary:before{content:"";width:5px;height:5px;border-right:1.5px solid var(--fg-3);border-bottom:1.5px solid var(--fg-3);
-    transform:rotate(-45deg);transition:.18s;margin-right:2px}
-  details[open] summary:before{transform:rotate(45deg)}
-  ol{margin:10px 0 0;padding-left:18px;color:var(--fg-2);font-size:13.5px}
-  ol li{margin:7px 0}
-  kbd{font-family:var(--mono);font-size:11.5px;padding:1px 6px;border-radius:5px;border:1px solid var(--line-strong);
-    background:var(--surface-2);color:#d6d6dd}
-  .hintnote{font-size:12.5px;color:var(--fg-3);margin-top:10px}
-
-  /* preview */
-  .preview{position:relative;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:16/9;border:1px solid var(--line)}
-  .preview video{width:100%;height:100%;display:block;object-fit:contain}
-  .preview .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:10px;color:var(--fg-3);font-size:13px}
-  .preview .empty svg{width:30px;height:30px;opacity:.55}
-  .statusline{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;color:var(--fg-2);flex-wrap:wrap}
-  .statusline .dot{width:6px;height:6px}
-  .sep{width:1px;height:11px;background:var(--line-strong)}
-  .checks{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--fg-3)}
-  .checks b{color:var(--fg-2);font-weight:500}
-
-  /* chat */
-  .chat{display:flex;flex-direction:column;gap:10px}
-  .msgs{display:flex;flex-direction:column;gap:8px;max-height:238px;overflow:auto;padding-right:2px}
-  .msg{font-size:13.5px;line-height:1.6;padding:9px 12px;border-radius:10px;white-space:pre-wrap;max-width:94%}
-  .msg.me{align-self:flex-end;background:var(--accent);color:#fff}
-  .msg.bot{align-self:flex-start;background:var(--surface-2);border:1px solid var(--line);color:#e6e6ec}
-  .msg .src{display:block;margin-top:5px;font-size:11px;color:var(--fg-3)}
-  .chips{display:flex;gap:6px;flex-wrap:wrap}
-  .chips button{font:inherit;font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);
-    background:transparent;color:var(--fg-2);cursor:pointer;transition:.12s}
-  .chips button:hover{color:var(--fg);border-color:var(--line-strong)}
-  .inputrow{display:flex;gap:8px}
-  .inputrow input{flex:1;height:38px;padding:0 12px;border-radius:9px;border:1px solid var(--line);
-    background:var(--surface-2);color:var(--fg);font:inherit;font-size:13.5px;outline:none;transition:.12s}
-  .inputrow input:focus{border-color:var(--accent)}
-  .btn{height:38px;padding:0 14px;border-radius:9px;border:1px solid var(--line);background:var(--surface-2);
-    color:var(--fg);font:inherit;font-size:13px;cursor:pointer;transition:.12s}
-  .btn:hover{border-color:var(--line-strong)}
+  /* ---------- 抽屉 ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:.18s;z-index:20}
+  .overlay.show{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:min(420px,92vw);background:var(--panel);
+    border-left:1px solid var(--line);transform:translateX(100%);transition:transform .22s ease;z-index:21;
+    display:flex;flex-direction:column}
+  .drawer.show{transform:none}
+  .drawer header{border-bottom:1px solid var(--line);padding:13px 16px;background:transparent;backdrop-filter:none}
+  .drawer header h3{margin:0;font-size:13.5px;font-weight:600}
+  .close{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--fg-2);
+    cursor:pointer;display:grid;place-items:center}
+  .close:hover{color:var(--fg);border-color:var(--line-2)}
+  .drawer .body{padding:14px 16px 20px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:12px;color:var(--fg-2)}
+  .field .help{font-size:11.5px;color:var(--fg-3);line-height:1.5}
+  .rowline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  input[type=text]{height:34px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);
+    color:var(--fg);font:inherit;font-size:13px;outline:none;flex:1;min-width:140px}
+  input[type=text]:focus{border-color:var(--accent)}
+  .btn{height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);
+    color:var(--fg);font-size:12.5px;cursor:pointer;transition:.12s}
+  .btn:hover{border-color:var(--line-2)}
   .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
   .btn.primary:hover{filter:brightness(1.06)}
   .btn:disabled{opacity:.5;cursor:not-allowed}
+  .hintline{font-size:11.5px;color:var(--fg-3);margin:0}
+  .kvline{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--fg-2);padding:8px 0;border-bottom:1px dashed var(--line)}
+  .kvline:last-child{border-bottom:none}
+  .kvline code{font-family:var(--mono);color:var(--fg);font-size:12px}
 
-  /* proxy settings row */
-  .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 14px;border:1px solid var(--line);
-    border-radius:10px;background:var(--surface-2)}
-  .row .label{font-size:13px;color:var(--fg-2)}
-  .row code{font-family:var(--mono);font-size:13px;color:var(--fg)}
-  .row .spacer{flex:1}
-  .state{display:inline-flex;align-items:center;gap:6px;font-size:12.5px}
-  .state.ok{color:var(--ok)} .state.bad{color:var(--warn)}
-  .editbox{display:none;margin-top:12px}
-  .editbox.show{display:block}
-  .msgline{margin:10px 0 0;font-size:12.5px;color:var(--fg-3)}
+  /* ---------- 问答 ---------- */
+  .chat{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0}
+  .msgs{display:flex;flex-direction:column;gap:8px;overflow:auto;padding:2px 0}
+  .msg{font-size:13px;line-height:1.6;padding:9px 11px;border-radius:10px;white-space:pre-wrap;max-width:94%}
+  .msg.me{align-self:flex-end;background:var(--accent);color:#fff}
+  .msg.bot{align-self:flex-start;background:var(--panel-2);border:1px solid var(--line);color:#e6e6ec}
+  .msg .src{display:block;margin-top:5px;font-size:10.5px;color:var(--fg-3)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chips button{font-size:11.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);background:transparent;
+    color:var(--fg-2);cursor:pointer}
+  .chips button:hover{color:var(--fg);border-color:var(--line-2)}
 
-  .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);opacity:0;pointer-events:none;
-    background:#111114;border:1px solid var(--line-strong);color:var(--fg);padding:9px 16px;border-radius:999px;
-    font-size:13px;transition:.18s ease;z-index:9}
+  .toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,12px);opacity:0;pointer-events:none;
+    background:#16161a;border:1px solid var(--line-2);padding:8px 15px;border-radius:999px;font-size:12.5px;
+    transition:.18s;z-index:30}
   .toast.show{opacity:1;transform:translate(-50%,0)}
-
-  footer{margin-top:22px;padding-top:16px;border-top:1px solid var(--line);
-    color:var(--fg-3);font-size:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
+<div class="app">
+  <header>
     <div class="mark" aria-hidden="true">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M5 3.2v9.6l8-4.8-8-4.8Z" fill="#fff"/>
-      </svg>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M5 3.2v9.6l8-4.8-8-4.8Z" fill="#fff"/></svg>
     </div>
-    <div class="brand">
-      <b>PS5 直播小助手</b>
-      <span id="ipLine">本机 · —</span>
-    </div>
+    <div class="title">PS5 直播小助手<span id="ipLine">本机 · —</span></div>
+    <span class="grow"></span>
     <span class="pill" id="pill"><span class="dot"></span><span id="pillText">检测中…</span></span>
+    <button class="ghost" id="openChat">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13.5 9.5a2 2 0 0 1-2 2H6l-3 2v-9a2 2 0 0 1 2-2h6.5a2 2 0 0 1 2 2v5Z"/></svg>
+      问一句
+    </button>
+    <button class="ghost" id="openSettings">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2.2"/><path d="M8 2.2v1.6M8 12.2v1.6M2.2 8h1.6M12.2 8h1.6M3.9 3.9l1.1 1.1M11 11l1.1 1.1M12.1 3.9L11 5M5 11l-1.1 1.1"/></svg>
+      设置
+    </button>
   </header>
 
-  <div class="banner" id="setupBanner">
-    <span class="grow">还差一步：放行防火墙、设置开机自启、创建桌面快捷方式。</span>
-    <button class="btn primary" id="doInstall">完成设置</button>
-  </div>
-
-  <div class="banner danger" id="errBanner"><span class="grow" id="errText"></span></div>
-  <div class="banner" id="ipBanner">
-    <span class="grow" id="ipBannerText"></span>
-    <button class="btn primary" id="fixIp">修正 DNS 指向</button>
-  </div>
-
-  <div class="grid">
-    <section class="card">
-      <div class="head"><span class="step">1</span><h2>PS5 的 DNS</h2></div>
-      <p class="sub">PS5 的直播流量要先到这台电脑，所以在 PS5 里把它设成 DNS。</p>
-      <div class="value">
-        <code id="dnsIp">—</code>
-        <button class="iconbtn" data-copy="dnsIp" title="复制">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg>
-          复制
-        </button>
-      </div>
-      <details open>
-        <summary>在 PS5 上怎么填</summary>
-        <ol>
-          <li>设置 → 网络 → <b>设定互联网连接</b></li>
-          <li>选中正在用的 Wi-Fi 或 LAN → 按 <kbd>选项</kbd> 键 → 详细设定</li>
-          <li>DNS 设置 → <b>手动</b> → 主 DNS 填上面的地址</li>
-          <li>保存后重新测试互联网连接，能连上就行</li>
-        </ol>
-      </details>
-    </section>
-
-    <section class="card">
-      <div class="head"><span class="step">2</span><h2>OBS 的播放地址</h2></div>
-      <p class="sub">在 OBS 里加「媒体源」，把地址粘进去。地址固定不变，PS5 换流名也不影响。</p>
-      <div class="value sm">
-        <code id="obsUrl">—</code>
-        <button class="iconbtn" data-copy="obsUrl" title="复制">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg>
-          复制
-        </button>
-      </div>
-      <div class="row" style="margin-top:10px">
-        <span class="label">低延迟</span>
-        <code id="rtmpUrl" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">PS5 开播后显示</code>
-        <span class="spacer"></span>
-        <button class="iconbtn" id="copyRtmp" disabled>复制 RTMP</button>
-      </div>
-      <details>
-        <summary>OBS 里怎么加</summary>
-        <ol>
-          <li>来源 → <b>+</b> → 媒体源 → 新建</li>
-          <li>取消勾选「本地文件」，<b>输入</b> 里粘贴上面的地址</li>
-          <li>勾选 <b>重新连接</b>（PS5 开播/重开都能自动接上）</li>
-          <li>想要 1–2 秒延迟：改用 VLC 视频源，填 RTMP 地址</li>
-        </ol>
-      </details>
-    </section>
-
-    <section class="card">
-      <div class="head"><h2>实时画面</h2></div>
-      <p class="sub" id="previewHint">PS5 开始直播后，这里会出现画面（约 5–10 秒延迟）。</p>
-      <div class="preview">
+  <main>
+    <section class="stage">
+      <div class="screen">
         <video id="video" controls playsinline muted autoplay></video>
         <div class="empty" id="empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="M8 21h8"/><path d="M10 9.5l5 2.5-5 2.5v-5Z" fill="currentColor" stroke="none"/></svg>
-          <span>还没有画面</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="M8 21h8"/></svg>
+          <div><b>等待 PS5 开播</b></div>
+          <div style="max-width:340px">PS5 上按 <kbd>Share</kbd> → 直播 → Twitch 开始推流，这里会自动出现画面。</div>
         </div>
       </div>
-      <div class="statusline" id="statusline"></div>
-      <div class="checks" id="checks"></div>
+      <div class="statusbar" id="statusbar"></div>
     </section>
 
-    <section class="card">
-      <div class="head"><h2>问一句</h2></div>
-      <p class="sub">它知道当前的 IP 和直播状态，哪里没弄对直接问。</p>
-      <div class="chat">
-        <div class="chips" id="chips">
-          <button data-q="PS5 的 DNS 怎么填？">DNS 怎么填</button>
-          <button data-q="OBS 怎么加？">OBS 怎么加</button>
-          <button data-q="没画面怎么办？">没画面</button>
-          <button data-q="现在是什么状态？">现在状态</button>
-        </div>
-        <div class="msgs" id="msgs">
-          <div class="msg bot">你好，我是这台直播机的助手。左边两条照做就能用，弄不明白随时问我。</div>
-        </div>
-        <div class="inputrow">
-          <input id="q" placeholder="比如：PS5 那边要怎么设置？" autocomplete="off">
-          <button class="btn primary" id="send">发送</button>
-        </div>
+    <aside>
+      <div class="sect">连接信息</div>
+      <div class="copyrow big">
+        <div class="txt"><span class="lab">PS5 的 DNS</span><code id="dnsIp">—</code></div>
+        <button class="copybtn" data-copy="dnsIp" title="复制">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg>
+        </button>
       </div>
-    </section>
+      <div class="copyrow wrap">
+        <div class="txt"><span class="lab">OBS 媒体源地址</span><code id="obsUrl">—</code></div>
+        <button class="copybtn" data-copy="obsUrl" title="复制">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg>
+        </button>
+      </div>
+      <div class="copyrow wrap" id="rtmpRow" style="opacity:.55">
+        <div class="txt"><span class="lab">低延迟 RTMP（可选）</span><code id="rtmpUrl">开播后显示</code></div>
+        <button class="copybtn" data-copy="rtmpUrl" id="copyRtmp" title="复制" disabled>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg>
+        </button>
+      </div>
 
-    <section class="card full">
-      <div class="head"><h2>Twitch 代理</h2></div>
-      <p class="sub">PS5 只填 DNS、不用填代理。开播时 PS5 要访问 Twitch，由这台电脑替它转发（走你本机的代理软件）；画面本身不经过代理。</p>
-      <div class="row">
-        <span class="label">当前</span>
-        <code id="proxyAddr">—</code>
-        <span class="state" id="proxyState"></span>
-        <span class="spacer"></span>
-        <button class="iconbtn" id="proxyEdit">修改</button>
-      </div>
-      <div class="editbox" id="proxyForm">
-        <div class="inputrow">
-          <input id="proxyInput" placeholder="例如 127.0.0.1:7897" autocomplete="off">
-          <button class="btn primary" id="proxySave">保存并测试</button>
-          <button class="btn" id="proxyAuto">自动检测</button>
-        </div>
-        <p class="msgline" id="proxyMsg"></p>
-      </div>
-    </section>
-  </div>
+      <div class="sect" style="margin-top:4px">下一步</div>
+      <div class="next" id="nextStep"></div>
 
-  <footer>
-    <span>PS5 推流 → 本机 DNS 劫持 → 本机接流 → 本页 / OBS</span>
-    <span>不需要采集卡</span>
-  </footer>
+      <div class="alert warn" id="ipAlert">
+        <div id="ipAlertText"></div>
+        <button class="btn" id="fixIp">修正 DNS 指向</button>
+      </div>
+      <div class="alert err" id="errAlert"><div id="errAlertText"></div></div>
+    </aside>
+  </main>
 </div>
+
+<!-- 设置抽屉 -->
+<div class="overlay" id="overlay"></div>
+<div class="drawer" id="settings">
+  <header style="display:flex;align-items:center;gap:10px">
+    <h3>设置</h3><span class="grow"></span>
+    <button class="close" data-close title="关闭">✕</button>
+  </header>
+  <div class="body">
+    <div class="field">
+      <label>Twitch 代理</label>
+      <div class="rowline">
+        <span id="proxyState" class="state"></span>
+        <code id="proxyAddr" style="font-family:var(--mono);font-size:12.5px;color:var(--fg)">—</code>
+      </div>
+      <div class="help">PS5 只填 DNS、不用填代理。开播时 PS5 要访问 Twitch，由这台电脑替它转发（走本机代理软件）；画面不经过代理。</div>
+      <div class="rowline">
+        <input type="text" id="proxyInput" placeholder="例如 127.0.0.1:7897">
+      </div>
+      <div class="rowline">
+        <button class="btn primary" id="proxySave">保存并测试</button>
+        <button class="btn" id="proxyAuto">自动检测</button>
+      </div>
+      <p class="hintline" id="proxyMsg"></p>
+    </div>
+
+    <div class="field">
+      <label>本机设置</label>
+      <div class="kvline"><span>程序状态</span><code id="installState">—</code></div>
+      <div class="kvline"><span>桌面快捷方式</span><code>PS5 直播小助手</code></div>
+      <button class="btn primary" id="doInstall" style="align-self:flex-start">完成设置（放行防火墙 / 开机自启）</button>
+      <p class="hintline">会弹一次系统授权窗口，点“是”即可。</p>
+    </div>
+
+    <div class="field">
+      <label>关于</label>
+      <div class="kvline"><span>日志</span><code style="font-size:11px">%LOCALAPPDATA%\PS5Live\panel.log</code></div>
+      <p class="hintline">关掉这个窗口，后台接流不会停；下次双击桌面图标即可重新打开。</p>
+    </div>
+  </div>
+</div>
+
+<!-- 问答抽屉 -->
+<div class="drawer" id="chatPanel">
+  <header style="display:flex;align-items:center;gap:10px">
+    <h3>问一句</h3><span class="grow"></span>
+    <button class="close" data-close title="关闭">✕</button>
+  </header>
+  <div class="body" style="flex:1;min-height:0">
+    <div class="chips" id="chips">
+      <button data-q="PS5 的 DNS 怎么填？">DNS 怎么填</button>
+      <button data-q="OBS 怎么加？">OBS 怎么加</button>
+      <button data-q="没画面怎么办？">没画面</button>
+      <button data-q="现在是什么状态？">现在状态</button>
+    </div>
+    <div class="chat">
+      <div class="msgs" id="msgs">
+        <div class="msg bot">你好，我是这台直播机的助手。左边两条照做就能用，弄不明白随时问我。</div>
+      </div>
+      <div class="rowline">
+        <input type="text" id="q" placeholder="比如：PS5 那边要怎么设置？" autocomplete="off">
+        <button class="btn primary" id="send">发送</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="/hls.min.js"></script>
@@ -305,9 +297,8 @@
     t.textContent = msg;
     t.classList.add('show');
     clearTimeout(t._t);
-    t._t = setTimeout(function () { t.classList.remove('show'); }, 1600);
+    t._t = setTimeout(function () { t.classList.remove('show'); }, 1700);
   }
-
   function copy(text) {
     function fb() {
       var ta = document.createElement('textarea');
@@ -318,23 +309,37 @@
     }
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(text).then(function () { toast('已复制'); }, fb);
-    } else { fb(); }
+    } else fb();
   }
-
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-copy]');
-    if (b) copy($(b.getAttribute('data-copy')).textContent.trim());
+    if (!b) return;
+    var el = $(b.getAttribute('data-copy'));
+    if (el && el.textContent.trim() && !b.disabled) copy(el.textContent.trim());
   });
 
-  function fmt(s) {
-    if (!s) return '';
-    var m = Math.floor(s / 60), sec = s % 60;
-    return (m ? m + ' 分 ' : '') + sec + ' 秒';
+  /* 抽屉 */
+  function openDrawer(el) { $('overlay').classList.add('show'); el.classList.add('show'); }
+  function closeDrawers() {
+    $('overlay').classList.remove('show');
+    $('settings').classList.remove('show');
+    $('chatPanel').classList.remove('show');
   }
+  $('overlay').addEventListener('click', closeDrawers);
+  Array.prototype.forEach.call(document.querySelectorAll('[data-close]'), function (b) {
+    b.addEventListener('click', closeDrawers);
+  });
+  $('openSettings').addEventListener('click', function () { openDrawer($('settings')); });
+  $('openChat').addEventListener('click', function () { openDrawer($('chatPanel')); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawers(); });
 
-  function dotBadge(ok, label) {
-    return '<span style="display:inline-flex;align-items:center;gap:6px">'
-      + '<span class="dot" style="background:' + (ok ? 'var(--ok)' : 'var(--err)') + '"></span>' + label + '</span>';
+  function fmt(s) {
+    var m = Math.floor(s / 60), sec = s % 60;
+    return (m ? m + ':' : '') + (sec < 10 ? '0' + sec : sec);
+  }
+  function badge(ok, on, off) {
+    return '<span class="kv"><span class="dot" style="background:' + (ok ? 'var(--ok)' : 'var(--err)') + '"></span>'
+      + '<b>' + (ok ? on : off) + '</b></span>';
   }
 
   function render(d) {
@@ -344,55 +349,72 @@
     $('dnsIp').textContent = d.configuredIp || d.ip;
     $('ipLine').textContent = '本机 · ' + d.ip;
     $('obsUrl').textContent = d.urls.hls;
-    $('rtmpUrl').textContent = s.live ? d.urls.rtmp : 'PS5 开播后显示';
+    $('rtmpUrl').textContent = s.live ? d.urls.rtmp : '开播后显示';
+    $('rtmpRow').style.opacity = s.live ? '1' : '.55';
     $('copyRtmp').disabled = !s.live;
 
     var pill = $('pill');
+    var checksOk = d.rtmpOk && d.dns && d.dns.ok && !d.dnsBindError;
+    pill.className = 'pill';
     if (s.live) {
-      pill.classList.add('live');
-      $('pillText').textContent = '正在直播' + (s.time ? ' · ' + fmt(s.time) : '');
+      pill.classList.add('active');
+      $('pillText').textContent = '正在接收 · ' + fmt(s.time || 0);
+    } else if (!checksOk) {
+      pill.classList.add('warn');
+      $('pillText').textContent = '需要处理';
     } else {
-      pill.classList.remove('live');
-      $('pillText').textContent = d.lastLiveAt ? '等待 PS5 开播' : '还没有开播';
+      pill.classList.add('ready');
+      $('pillText').textContent = '就绪 · 等待 PS5 开播';
     }
 
     var bits = [];
     if (s.video) bits.push(s.video.width + '×' + s.video.height);
     if (s.bwIn) bits.push((s.bwIn * 8 / 1e6).toFixed(1) + ' Mbps');
-    var line = '<span class="dot" style="background:' + (s.live ? 'var(--ok)' : 'var(--fg-3)') + '"></span>'
-      + '<span>' + (s.live ? '正在接收' : '空闲') + '</span>';
-    if (s.live && bits.length) line += '<span class="sep"></span><span>' + bits.join(' · ') + '</span>';
-    $('statusline').innerHTML = line;
+    var bar = [
+      '<span class="kv">' + (s.live ? '接收中' : '空闲') + '</span>',
+      s.live && bits.length ? '<span class="sep"></span><span class="kv">' + bits.join(' · ') + '</span>' : '',
+      '<span class="sep"></span>',
+      '<span class="kv">DNS ' + badge(d.dns && d.dns.ok, '正常', '异常') + '</span>',
+      '<span class="sep"></span>',
+      '<span class="kv">RTMP ' + badge(d.rtmpOk, '通', '不通') + '</span>'
+    ].join('');
+    $('statusbar').innerHTML = bar;
 
-    $('previewHint').textContent = s.live
-      ? '正在播放：' + (bits.join(' · ') || '直播中') + '（约 5–10 秒延迟）'
-      : 'PS5 开始直播后，这里会出现画面（约 5–10 秒延迟）。';
+    $('empty').style.display = s.live ? 'none' : 'flex';
 
-    var checks = [];
-    checks.push('DNS 劫持 ' + dotBadge(d.dns && d.dns.ok, d.dns && d.dns.ok ? '正常' : '异常'));
-    checks.push('RTMP ' + dotBadge(d.rtmpOk, d.rtmpOk ? '通' : '不通'));
-    if (d.dns && d.dns.ips && d.dns.ips.length) checks.push('解析 ' + d.dns.ips.join(', '));
-    $('checks').innerHTML = checks.join('');
-
-    var eb = $('errBanner');
+    /* 下一步 */
+    var next;
     if (d.dnsBindError) {
-      eb.classList.add('show');
-      $('errText').textContent = 'DNS 服务没起来：' + d.dnsBindError + '。双击「完成设置」修复，或关掉 Windows 的移动热点后重试。';
-    } else { eb.classList.remove('show'); }
+      next = '<div class="k">需要先解决</div><b>DNS 端口被占用</b>，PS5 无法解析。去设置里点“完成设置”，或关掉 Windows 移动热点。';
+    } else if (!d.rtmpOk) {
+      next = '<div class="k">需要先解决</div>接流端口（1935）没起来，点右上角<b>设置 → 完成设置</b>。';
+    } else if (!s.live) {
+      next = '<div class="k">第 1 步</div>在 PS5 里把 DNS 设为 <b>' + (d.configuredIp || d.ip) + '</b>，然后按 <kbd>Share</kbd> → 直播 → Twitch 开始推流。';
+    } else {
+      next = '<div class="k">第 2 步</div>PS5 已接上。在 OBS 里加 <b>媒体源</b>，粘贴上面的地址并勾选<b>重新连接</b>。';
+    }
+    $('nextStep').innerHTML = next;
 
-    var ib = $('ipBanner');
+    /* 告警 */
+    var ipA = $('ipAlert');
     if (d.ipMismatch) {
-      ib.classList.add('show');
-      $('ipBannerText').textContent = '这台电脑现在的 IP 是 ' + d.ip + '，DNS 还指向 ' + d.configuredIp + '。点右边一键改好，PS5 里的 DNS 也跟着改成 ' + d.ip + '。';
-    } else { ib.classList.remove('show'); }
+      ipA.classList.add('show');
+      $('ipAlertText').innerHTML = '这台电脑的 IP 已变成 <b>' + d.ip + '</b>，DNS 还指向 ' + d.configuredIp + '。';
+    } else ipA.classList.remove('show');
 
-    $('setupBanner').classList.toggle('show', d.installed === false);
+    var erA = $('errAlert');
+    if (d.dnsBindError) {
+      erA.classList.add('show');
+      $('errAlertText').textContent = 'DNS 服务没起来：' + d.dnsBindError;
+    } else erA.classList.remove('show');
+
+    $('installState').textContent = d.installed === false ? '未完成设置' : '已设置';
     syncPlayer(s);
   }
 
   function syncPlayer(s) {
     var v = $('video');
-    $('empty').style.display = s.live ? 'none' : 'flex';
+    v.style.display = s.live ? 'block' : 'none';
     if (s.live) {
       if (window.Hls && window.Hls.isSupported()) {
         if (!hls) {
@@ -418,32 +440,31 @@
       .then(function () { setTimeout(poll, 2500); });
   }
 
-  /* 代理设置 */
+  /* 设置：代理 / 安装 / 版本 */
   function paintProxy(p) {
     if (!p) return;
-    var a = $('proxyAddr'), st = $('proxyState');
     if (p.enabled) {
-      a.textContent = p.addr + (p.auto ? '（自动）' : '');
-      st.className = 'state ok'; st.textContent = '已连接';
+      $('proxyAddr').textContent = p.addr + (p.auto ? '（自动）' : '');
+      $('proxyState').textContent = '已连接';
+      $('proxyState').style.color = 'var(--ok)';
+      $('proxyState').style.fontSize = '12px';
     } else {
-      a.textContent = p.auto === false ? (p.addr || '—') : '—';
-      st.className = 'state bad';
-      st.textContent = p.error || '未启用';
+      $('proxyAddr').textContent = p.addr || '—';
+      $('proxyState').textContent = p.error || '未启用';
+      $('proxyState').style.color = 'var(--warn)';
+      $('proxyState').style.fontSize = '12px';
     }
   }
   function loadProxy() {
     fetch('/api/proxy', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(paintProxy).catch(function () {});
   }
-  $('proxyEdit').addEventListener('click', function () {
-    $('proxyForm').classList.toggle('show');
-  });
-  function saveProxy(body, okText) {
+  function saveProxy(body, label) {
     fetch('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         paintProxy(d);
         $('proxyMsg').textContent = d.ok
-          ? (d.enabled ? (okText || '已连上') + '：' + d.addr : '没连上：' + (d.error || '这个地址没有代理在监听'))
+          ? (d.enabled ? label + '：' + d.addr : '没连上：' + (d.error || '这个地址没有代理在监听'))
           : (d.error || '保存失败');
       })
       .catch(function () { $('proxyMsg').textContent = '保存失败'; });
@@ -451,35 +472,26 @@
   $('proxySave').addEventListener('click', function () {
     saveProxy({ addr: $('proxyInput').value.trim() }, '已连上');
   });
-  $('proxyAuto').addEventListener('click', function () {
-    saveProxy({ addr: '' }, '自动检测到');
-  });
+  $('proxyAuto').addEventListener('click', function () { saveProxy({ addr: '' }, '自动检测到'); });
 
-  /* 安装 */
   $('doInstall').addEventListener('click', function () {
-    var btn = this;
-    btn.disabled = true;
+    var b = this; b.disabled = true;
     fetch('/api/install', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (d) {
-      toast(d.ok ? '已发起设置，请在弹出的窗口点“是”' : (d.error || '设置失败'));
+      toast(d.ok ? '已发起，请在弹出的窗口点“是”' : (d.error || '设置失败'));
     }).catch(function () { toast('设置失败'); })
-      .then(function () { setTimeout(function () { btn.disabled = false; }, 5000); });
+      .then(function () { setTimeout(function () { b.disabled = false; }, 5000); });
   });
 
-  /* 修正 DNS 指向 */
   $('fixIp').addEventListener('click', function () {
-    var btn = this;
-    btn.disabled = true;
-    fetch('/api/dns-ip', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ip: state.ip })
-    }).then(function (r) { return r.json(); }).then(function (d) {
-      toast(d.ok ? 'DNS 已指向 ' + d.ip : (d.error || '修改失败'));
-    }).catch(function () { toast('修改失败'); })
-      .then(function () { btn.disabled = false; });
+    var b = this; b.disabled = true;
+    fetch('/api/dns-ip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: state.ip }) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { toast(d.ok ? 'DNS 已指向 ' + d.ip : (d.error || '修改失败')); })
+      .catch(function () { toast('修改失败'); })
+      .then(function () { b.disabled = false; });
   });
 
-  /* 聊天 */
+  /* 问答 */
   function addMsg(text, who, src) {
     var div = document.createElement('div');
     div.className = 'msg ' + who;
@@ -497,22 +509,19 @@
     if (!q.trim()) return;
     addMsg(q, 'me');
     $('q').value = '';
-    var btn = $('send'); btn.disabled = true;
+    var b = $('send'); b.disabled = true;
     fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: q }) })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         addMsg(d.ok ? (d.text + (d.note ? '\n\n（' + d.note + '）' : '')) : ('出错了：' + (d.error || '')), 'bot', d.source);
       })
       .catch(function () { addMsg('面板连不上，稍后再试。', 'bot'); })
-      .then(function () { btn.disabled = false; });
+      .then(function () { b.disabled = false; });
   }
   $('send').addEventListener('click', function () { ask($('q').value); });
   $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') ask($('q').value); });
   Array.prototype.forEach.call(document.querySelectorAll('#chips button'), function (b) {
     b.addEventListener('click', function () { ask(b.getAttribute('data-q')); });
-  });
-  $('copyRtmp').addEventListener('click', function () {
-    if (state.urls.rtmp) copy(state.urls.rtmp); else toast('PS5 还没开播');
   });
 
   loadProxy();
