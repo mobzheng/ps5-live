@@ -101,6 +101,15 @@ const AI_BASE = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').rep
 const AI_MODEL = cfgStr('OPENAI_MODEL', 'gpt-4o-mini');
 const DEFAULT_DOMAINS = ['contribute.live-video.net', 'live-video.net'];
 
+// Twitch 控制面（API/登录）走本机 443 → Clash 隧道，PS5 上不用填代理
+const PROXY_ENABLE = cfgStr('PROXY_ENABLE', 'auto'); // auto | 1 | 0
+const PROXY_ADDR_CFG = cfgStr('PROXY_ADDR', '');
+const PROXY_CANDIDATES = ['127.0.0.1:7897', '127.0.0.1:7890', '127.0.0.1:7891', '127.0.0.1:1080', '127.0.0.1:10808'];
+let PROXY_ADDR = PROXY_ADDR_CFG;
+const PROXY_PORT = cfgInt('PROXY_PORT', 443);
+const PROXY_SUFFIXES = cfgStr('PROXY_SUFFIXES', '.twitch.tv,twitch.tv')
+  .split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+
 try { fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true }); } catch (_) { /* ignore */ }
 
 function log(msg) {
@@ -383,7 +392,8 @@ function startEmbeddedDns() {
     const name = q.name.toLowerCase();
     const hijack = confIp();
     const hit = hijack && qClass === 1
-      && confDomains().some((d) => name === d.toLowerCase() || name.endsWith('.' + d.toLowerCase()));
+      && (confDomains().some((d) => name === d.toLowerCase() || name.endsWith('.' + d.toLowerCase()))
+        || proxyHit(name));
     try {
       if (hit) {
         sock.send(buildReply(msg, qType, qEnd, hijack), rinfo.port, rinfo.address);
@@ -398,6 +408,146 @@ function startEmbeddedDns() {
     dnsBindError = '';
     log(`DNS 已启动 :${DNS_PORT}，上游 ${confUpstream()}`);
   });
+}
+
+/* ------------------------- Twitch 控制面隧道 ------------------------------ */
+let proxyEnabled = false;
+let proxyServer = null;
+let proxyError = '';
+
+function proxyHit(name) {
+  if (!proxyEnabled) return false;
+  const n = String(name || '').toLowerCase();
+  return PROXY_SUFFIXES.some((sfx) => (sfx.startsWith('.') ? n.endsWith(sfx) : n === sfx));
+}
+
+function tcpProbe(host, port, ms = 800) {
+  return new Promise((resolve) => {
+    const sock = net.connect({ host, port });
+    const done = (ok) => { sock.destroy(); resolve(ok); };
+    sock.setTimeout(ms, () => done(false));
+    sock.on('connect', () => done(true));
+    sock.on('error', () => done(false));
+  });
+}
+
+/** 从 TLS ClientHello 里取 SNI */
+function parseSni(buf) {
+  try {
+    if (buf.length < 6 || buf[0] !== 0x16 || buf[5] !== 0x01) return '';
+    let p = 9; // record(5) + handshake type(1) + length(3)
+    if (p + 2 + 32 > buf.length) return '';
+    p += 2 + 32;
+    const sid = buf[p]; p += 1 + sid;
+    if (p + 2 > buf.length) return '';
+    const cs = buf.readUInt16BE(p); p += 2 + cs;
+    if (p + 1 > buf.length) return '';
+    const cm = buf[p]; p += 1 + cm;
+    if (p + 2 > buf.length) return '';
+    const extTotal = buf.readUInt16BE(p); p += 2;
+    const end = Math.min(p + extTotal, buf.length);
+    while (p + 4 <= end) {
+      const type = buf.readUInt16BE(p);
+      const len = buf.readUInt16BE(p + 2);
+      p += 4;
+      if (type === 0 && p + 5 <= buf.length) {
+        let q = p + 2; // server_name_list 长度
+        const nameType = buf[q]; q += 1;
+        if (nameType === 0) {
+          const nlen = buf.readUInt16BE(q); q += 2;
+          if (q + nlen <= buf.length) return buf.slice(q, q + nlen).toString('latin1');
+        }
+      }
+      p += len;
+    }
+  } catch (_) { /* ignore */ }
+  return '';
+}
+
+function openTunnel(client, initial, sni) {
+  const idx = PROXY_ADDR.lastIndexOf(':');
+  const host = PROXY_ADDR.slice(0, idx) || '127.0.0.1';
+  const port = parseInt(PROXY_ADDR.slice(idx + 1), 10) || 7890;
+  const up = net.connect({ host, port });
+  const kill = () => {
+    try { up.destroy(); } catch (_) { /* ignore */ }
+    try { client.destroy(); } catch (_) { /* ignore */ }
+  };
+  up.setTimeout(10000, kill);
+  up.on('error', kill);
+  up.on('connect', () => up.write(`CONNECT ${sni}:443 HTTP/1.1\r\nHost: ${sni}:443\r\nProxy-Connection: keep-alive\r\n\r\n`));
+  let head = Buffer.alloc(0);
+  const onHead = (chunk) => {
+    head = Buffer.concat([head, chunk]);
+    const sep = head.indexOf('\r\n\r\n');
+    if (sep < 0) { if (head.length > 8192) kill(); return; }
+    up.removeListener('data', onHead);
+    const status = head.slice(0, sep).toString('latin1').split('\r\n')[0];
+    if (!/\s200\s/.test(status)) {
+      log(`Twitch 隧道被拒绝：${sni} ${status}`);
+      return kill();
+    }
+    up.setTimeout(0);
+    up.write(initial);
+    const rest = head.slice(sep + 4);
+    if (rest.length) client.write(rest);
+    client.setTimeout(0);
+    client.pipe(up);
+    up.pipe(client);
+  };
+  up.on('data', onHead);
+}
+
+function handleProxyConn(client) {
+  let buf = Buffer.alloc(0);
+  const fail = () => {
+    try { client.destroy(); } catch (_) { /* ignore */ }
+  };
+  const onData = (chunk) => {
+    buf = Buffer.concat([buf, chunk]);
+    if (buf.length > 16384) return fail();
+    const sni = parseSni(buf);
+    if (!sni) {
+      if (buf.length >= 6 && buf[0] === 0x16 && buf[5] === 0x01) return; // 还没收全
+      return fail();
+    }
+    client.removeListener('data', onData);
+    client.setTimeout(0);
+    log(`Twitch 控制面隧道：${sni}`);
+    openTunnel(client, buf, sni);
+  };
+  client.on('error', fail);
+  client.setTimeout(10000, fail);
+  client.on('data', onData);
+}
+
+function startProxyServer() {
+  if (proxyServer) return;
+  proxyServer = net.createServer(handleProxyConn);
+  proxyServer.on('error', (e) => {
+    proxyError = e.code === 'EADDRINUSE' ? '本机 443 端口被占用' : String(e.message || e);
+    log('Twitch 隧道监听失败: ' + proxyError);
+    proxyServer = null;
+  });
+  proxyServer.listen(PROXY_PORT, '0.0.0.0', () => { proxyError = ''; log(`Twitch 隧道已启动 :${PROXY_PORT} → ${PROXY_ADDR}`); });
+}
+
+async function ensureProxy() {
+  if (PROXY_ENABLE === '0') return;
+  if (proxyEnabled) return;
+  const cands = PROXY_ADDR_CFG ? [PROXY_ADDR_CFG] : PROXY_CANDIDATES;
+  for (const addr of cands) {
+    const idx = addr.lastIndexOf(':');
+    const host = addr.slice(0, idx) || '127.0.0.1';
+    const port = parseInt(addr.slice(idx + 1), 10) || 7890;
+    if (await tcpProbe(host, port)) {
+      PROXY_ADDR = addr;
+      proxyEnabled = true;
+      startProxyServer();
+      log('检测到本地代理 ' + addr + '，Twitch 控制面走隧道');
+      return;
+    }
+  }
 }
 
 /* ------------------------------ mediamtx --------------------------------- */
@@ -674,6 +824,7 @@ const server = http.createServer(async (req, res) => {
         dns: st.dns,
         dnsBound,
         dnsBindError,
+        proxy: { enabled: proxyEnabled, addr: PROXY_ADDR, port: PROXY_PORT, error: proxyError },
         installed: fs.existsSync(path.join(STATE_DIR, '.installed')),
         liveSince: st.liveSince,
         lastLiveAt: st.lastLiveAt,
@@ -758,6 +909,8 @@ async function main() {
 
   startEmbeddedDns();
   startMedia();
+  ensureProxy();
+  setInterval(ensureProxy, 10000);
   server.listen(PORT, '127.0.0.1', () => {
     log(`listening :${PORT} dns=:${DNS_PORT} rtmp=:${RTMP_PORT} mode=${IS_SEA ? 'exe' : 'dir'}`);
     try { fs.writeFileSync(path.join(STATE_DIR, '.pid'), String(process.pid)); } catch (_) { /* ignore */ }

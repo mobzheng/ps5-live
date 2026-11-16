@@ -249,6 +249,7 @@
     checks.push('<span>DNS 劫持 <b class="' + (d.dns && d.dns.ok ? 'ok' : 'bad') + '">' + (d.dns && d.dns.ok ? '正常' : '异常') + '</b></span>');
     checks.push('<span>RTMP 端口 <b class="' + (d.rtmpOk ? 'ok' : 'bad') + '">' + (d.rtmpOk ? '通' : '不通') + '</b></span>');
     checks.push('<span>观看人数 <b>' + (s.clients || 0) + '</b></span>');
+    if (d.proxy) checks.push('<span>Twitch 隧道 <b class="' + (d.proxy.enabled ? 'ok' : 'warnc') + '">' + (d.proxy.enabled ? '已启用' : (d.proxy.error || '未启用')) + '</b></span>');
     if (d.dns && d.dns.ips && d.dns.ips.length) checks.push('<span>解析结果 <b>' + d.dns.ips.join(', ') + '</b></span>');
     $('checks').innerHTML = checks.join('');
 

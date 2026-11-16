@@ -261,7 +261,8 @@ class Program
             new string[] { "PS5Live-DNS", "UDP", "53" },
             new string[] { "PS5Live-RTMP", "TCP", "1935" },
             new string[] { "PS5Live-HLS", "TCP", "8000" },
-            new string[] { "PS5Live-Panel", "TCP", "8088" }
+            new string[] { "PS5Live-Panel", "TCP", "8088" },
+            new string[] { "PS5Live-Twitch", "TCP", "443" }
         };
         foreach (string[] r in rules)
         {
