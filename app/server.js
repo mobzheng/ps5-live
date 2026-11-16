@@ -16,6 +16,7 @@ const fs = require('fs');
 const net = require('net');
 const dgram = require('dgram');
 const path = require('path');
+const crypto = require('crypto');
 const os = require('os');
 const osDns = require('dns');
 const { spawn, execFile } = require('child_process');
@@ -40,14 +41,20 @@ function seaAssetText(name) {
   return Buffer.from(sea.getAsset(name)).toString('utf8');
 }
 
+function sameBytes(buf, p) {
+  const a = crypto.createHash('sha256').update(buf).digest('hex');
+  const b = crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+  return a === b;
+}
+
 /** 单文件版：把内嵌资源释放到可写目录；配置只在缺失时写入，保留用户改动 */
 function extractRuntime() {
   if (!IS_SEA) return;
   fs.mkdirSync(STATE_DIR, { recursive: true });
   const mtx = path.join(STATE_DIR, IS_WIN ? 'mediamtx.exe' : 'mediamtx');
-  const want = Buffer.from(sea.getAsset('mediamtx.exe'));
+  const want = Buffer.from(sea.getAsset(IS_WIN ? 'mediamtx.exe' : 'mediamtx'));
   let need = true;
-  try { need = fs.statSync(mtx).size !== want.length; } catch (_) { need = true; }
+  try { need = !sameBytes(want, mtx); } catch (_) { need = true; }
   if (need) {
     const tmp = mtx + '.tmp';
     fs.writeFileSync(tmp, want);
@@ -101,7 +108,7 @@ const AI_BASE = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').rep
 const AI_MODEL = cfgStr('OPENAI_MODEL', 'gpt-4o-mini');
 const DEFAULT_DOMAINS = ['contribute.live-video.net', 'live-video.net'];
 
-// Twitch 控制面（API/登录）走本机 443 → Clash 隧道，PS5 上不用填代理
+// Twitch 控制面（API/登录）走本机 443 → Clash 代理，PS5 上不用填代理
 let PROXY_ENABLE = cfgStr('PROXY_ENABLE', 'auto'); // auto | 1 | 0
 let PROXY_ADDR_CFG = cfgStr('PROXY_ADDR', '');
 const PROXY_CANDIDATES = ['127.0.0.1:7897', '127.0.0.1:7890', '127.0.0.1:7891', '127.0.0.1:1080', '127.0.0.1:10808'];
@@ -410,7 +417,7 @@ function startEmbeddedDns() {
   });
 }
 
-/* ------------------------- Twitch 控制面隧道 ------------------------------ */
+/* ------------------------- Twitch 控制面代理 ------------------------------ */
 let proxyEnabled = false;
 let proxyServer = null;
 let proxyError = '';
@@ -484,7 +491,7 @@ function openTunnel(client, initial, sni) {
     up.removeListener('data', onHead);
     const status = head.slice(0, sep).toString('latin1').split('\r\n')[0];
     if (!/\s200\s/.test(status)) {
-      log(`Twitch 隧道被拒绝：${sni} ${status}`);
+      log(`Twitch 代理拒绝：${sni} ${status}`);
       return kill();
     }
     up.setTimeout(0);
@@ -513,7 +520,7 @@ function handleProxyConn(client) {
     }
     client.removeListener('data', onData);
     client.setTimeout(0);
-    log(`Twitch 控制面隧道：${sni}`);
+    log(`Twitch 代理转发：${sni}`);
     openTunnel(client, buf, sni);
   };
   client.on('error', fail);
@@ -526,10 +533,10 @@ function startProxyServer() {
   proxyServer = net.createServer(handleProxyConn);
   proxyServer.on('error', (e) => {
     proxyError = e.code === 'EADDRINUSE' ? '本机 443 端口被占用' : String(e.message || e);
-    log('Twitch 隧道监听失败: ' + proxyError);
+    log('Twitch 代理监听失败: ' + proxyError);
     proxyServer = null;
   });
-  proxyServer.listen(PROXY_PORT, '0.0.0.0', () => { proxyError = ''; log(`Twitch 隧道已启动 :${PROXY_PORT} → ${PROXY_ADDR}`); });
+  proxyServer.listen(PROXY_PORT, '0.0.0.0', () => { proxyError = ''; log(`Twitch 代理已启动 :${PROXY_PORT} → ${PROXY_ADDR}`); });
 }
 
 function saveProxyCfg(addr, enable) {
@@ -565,7 +572,7 @@ async function ensureProxy() {
       PROXY_ADDR = addr;
       proxyEnabled = true;
       startProxyServer();
-      log('检测到本地代理 ' + addr + '，Twitch 控制面走隧道');
+      log('检测到本地代理 ' + addr + '，Twitch 访问走本机代理');
       return;
     }
   }

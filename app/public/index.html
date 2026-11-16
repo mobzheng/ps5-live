@@ -172,8 +172,8 @@
   </div>
 
   <section class="card" style="margin-top:18px">
-    <h2>Twitch 隧道（PS5 开播时用）</h2>
-    <p class="hint">PS5 只需要填 DNS，不用填代理。PS5 找 Twitch 要流地址时，由这台电脑经本机代理转发；媒体流仍在局域网内，不走代理。</p>
+    <h2>Twitch 代理（开播时用）</h2>
+    <p class="hint">PS5 只需要填 DNS，不用填代理。开播时 PS5 要访问 Twitch，由这台电脑替它转发（走你本机的代理软件）；画面本身不经过代理，仍在局域网里。</p>
     <div class="value small">
       <code id="proxyAddr">—</code>
       <button class="ghost" id="proxyEdit">修改</button>
@@ -380,7 +380,7 @@
     if (!p) return;
     var el = $('proxyAddr');
     if (p.enabled) { el.textContent = p.addr + (p.auto ? '（自动检测）' : ''); el.className = 'ok'; }
-    else { el.textContent = p.error || '未启用（PS5 上需要手动填代理）'; el.className = 'warnc'; }
+    else { el.textContent = p.error || '未启用（那 PS5 上就得手动填代理）'; el.className = 'warnc'; }
   }
 
   function loadProxy() {

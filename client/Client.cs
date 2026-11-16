@@ -66,6 +66,26 @@ class Program
         return null;
     }
 
+    static byte[] Sha(Stream s)
+    {
+        using (var sha = System.Security.Cryptography.SHA256.Create()) return sha.ComputeHash(s);
+    }
+
+    static bool SameContent(Stream s, string path)
+    {
+        try
+        {
+            long pos = s.Position;
+            byte[] a = Sha(s);
+            s.Position = pos;
+            using (FileStream f = File.OpenRead(path))
+            {
+                return Convert.ToBase64String(a) == Convert.ToBase64String(Sha(f));
+            }
+        }
+        catch (Exception) { return false; }
+    }
+
     static void EnsureFile(string resource, string target, bool always)
     {
         using (Stream s = Assembly.GetEntryAssembly().GetManifestResourceStream(resource))
@@ -74,7 +94,7 @@ class Program
             bool write = always;
             if (!write)
             {
-                try { write = new FileInfo(target).Length != s.Length; }
+                try { write = !SameContent(s, target); }
                 catch (Exception) { write = true; }
             }
             if (!write) return;
