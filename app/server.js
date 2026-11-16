@@ -255,6 +255,8 @@ function parseMediamtxStream(json) {
   const tracks2 = it.tracks2 || [];
   const v = tracks2.find((t) => /H264|H265|HEVC|AV1|VP9/i.test(t.codec || ''));
   const a = tracks2.find((t) => /Audio|AAC|Opus|MPEG/i.test(t.codec || ''));
+  const trackNames = (it.tracks || []).join(' ');
+  const audioCodec = a ? a.codec : (/Opus/i.test(trackNames) ? 'Opus' : (/Audio|AAC/i.test(trackNames) ? 'AAC' : ''));
   const bytes = Number(it.inboundBytes || it.bytesReceived || 0);
   const now = Date.now();
   const prev = bwSamples.get(p);
@@ -274,7 +276,7 @@ function parseMediamtxStream(json) {
     clients: (it.readers || []).filter((r) => r && r.type !== 'hlsMuxer').length,
     bwIn: bw,
     video,
-    audio: a ? { codec: a.codec } : null,
+    audio: audioCodec ? { codec: audioCodec } : null,
   };
 }
 
@@ -627,8 +629,10 @@ async function getStatus() {
     liveSince = 0;
   }
   if (stream.live && !stream.time && liveSince) stream.time = Math.round((Date.now() - liveSince) / 1000);
+  const now = Date.now();
+  for (const [k, t] of viewers) if (now - t > 15000) viewers.delete(k);
   const [rtmpOk, dns] = await Promise.all([tcpCheck('127.0.0.1', RTMP_PORT), dnsCheck(configuredIp)]);
-  const value = { configuredIp, domains: confDomains(), stream, rtmpOk, dns, statError, liveSince, lastLiveAt };
+  const value = { configuredIp, domains: confDomains(), stream, rtmpOk, dns, statError, liveSince, lastLiveAt, viewers: viewers.size };
   cache = { at: Date.now(), value };
   return value;
 }
@@ -741,6 +745,7 @@ function serveStatic(res, rel) {
 }
 
 const hlsState = { name: '', dir: '', child: '' };
+const viewers = new Map(); // ip -> lastSeen
 
 function proxiedPlaylist(text, dirUrl, streamName) {
   if (hlsState.name !== streamName) {
@@ -808,7 +813,7 @@ async function handleVariant(res) {
   }
 }
 
-async function handleSegment(res, name) {
+async function handleSegment(req, res, name) {
   if (!hlsState.dir || !name || name.includes('/') || name.includes('..')) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     return res.end('还没有切片');
@@ -820,6 +825,7 @@ async function handleSegment(res, name) {
     const buf = Buffer.from(await r.arrayBuffer());
     res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' });
     res.end(buf);
+    try { viewers.set(req.socket.remoteAddress || '', Date.now()); } catch (_) { /* ignore */ }
   } catch (e) {
     res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end(String(e.message || e));
@@ -853,6 +859,7 @@ const server = http.createServer(async (req, res) => {
         ipMismatch: st.configuredIp !== ip,
         urls: urls(ip, st.stream),
         stream: st.stream,
+        viewers: st.viewers,
         rtmpOk: st.rtmpOk,
         dns: st.dns,
         dnsBound,
@@ -942,7 +949,7 @@ const server = http.createServer(async (req, res) => {
 
     if (p === '/live.m3u8') return handlePlaylist(res);
     if (p === '/live/v.m3u8') return handleVariant(res);
-    if (p.startsWith('/live/s/')) return handleSegment(res, decodeURIComponent(p.slice('/live/s/'.length)));
+    if (p.startsWith('/live/s/')) return handleSegment(req, res, decodeURIComponent(p.slice('/live/s/'.length)));
 
     if (p === '/healthz') {
       const st = await getStatus();
