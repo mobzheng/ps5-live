@@ -242,7 +242,7 @@ function emptyStream() {
 }
 
 const bwSamples = new Map();
-let hlsProbe = { name: '', width: 0, height: 0, fps: null, at: 0 };
+let hlsProbe = { name: '', width: 0, height: 0, at: 0 };
 
 function parseMediamtxStream(json) {
   let items = [];
@@ -264,9 +264,9 @@ function parseMediamtxStream(json) {
   const bw = prev && now > prev.at ? Math.max(0, Math.round((bytes - prev.bytes) / ((now - prev.at) / 1000))) : 0;
   let video = null;
   if (v && v.codecProps && v.codecProps.width) {
-    video = { width: v.codecProps.width, height: v.codecProps.height, fps: null, codec: v.codec };
+    video = { width: v.codecProps.width, height: v.codecProps.height, codec: v.codec };
   } else if (hlsProbe.name === p && hlsProbe.width) {
-    video = { width: hlsProbe.width, height: hlsProbe.height, fps: hlsProbe.fps, codec: 'H264' };
+    video = { width: hlsProbe.width, height: hlsProbe.height, codec: 'H264' };
   }
   return {
     live: true,
@@ -629,10 +629,8 @@ async function getStatus() {
     liveSince = 0;
   }
   if (stream.live && !stream.time && liveSince) stream.time = Math.round((Date.now() - liveSince) / 1000);
-  const now = Date.now();
-  for (const [k, t] of viewers) if (now - t > 15000) viewers.delete(k);
   const [rtmpOk, dns] = await Promise.all([tcpCheck('127.0.0.1', RTMP_PORT), dnsCheck(configuredIp)]);
-  const value = { configuredIp, domains: confDomains(), stream, rtmpOk, dns, statError, liveSince, lastLiveAt, viewers: viewers.size };
+  const value = { configuredIp, domains: confDomains(), stream, rtmpOk, dns, statError, liveSince, lastLiveAt };
   cache = { at: Date.now(), value };
   return value;
 }
@@ -745,7 +743,6 @@ function serveStatic(res, rel) {
 }
 
 const hlsState = { name: '', dir: '', child: '' };
-const viewers = new Map(); // ip -> lastSeen
 
 function proxiedPlaylist(text, dirUrl, streamName) {
   if (hlsState.name !== streamName) {
@@ -754,8 +751,7 @@ function proxiedPlaylist(text, dirUrl, streamName) {
     hlsState.child = '';
   }
   const res = text.match(/RESOLUTION=(\d+)x(\d+)/);
-  const fr = text.match(/FRAME-RATE=([\d.]+)/);
-  if (res) hlsProbe = { name: streamName, width: +res[1], height: +res[2], fps: fr ? +fr[1] : null, at: Date.now() };
+  if (res) hlsProbe = { name: streamName, width: +res[1], height: +res[2], at: Date.now() };
   hlsState.dir = dirUrl;
   return text.split('\n').map((line) => {
     const l = line.trim();
@@ -813,7 +809,7 @@ async function handleVariant(res) {
   }
 }
 
-async function handleSegment(req, res, name) {
+async function handleSegment(res, name) {
   if (!hlsState.dir || !name || name.includes('/') || name.includes('..')) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     return res.end('还没有切片');
@@ -825,7 +821,6 @@ async function handleSegment(req, res, name) {
     const buf = Buffer.from(await r.arrayBuffer());
     res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' });
     res.end(buf);
-    try { viewers.set(req.socket.remoteAddress || '', Date.now()); } catch (_) { /* ignore */ }
   } catch (e) {
     res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end(String(e.message || e));
@@ -859,7 +854,6 @@ const server = http.createServer(async (req, res) => {
         ipMismatch: st.configuredIp !== ip,
         urls: urls(ip, st.stream),
         stream: st.stream,
-        viewers: st.viewers,
         rtmpOk: st.rtmpOk,
         dns: st.dns,
         dnsBound,
@@ -949,7 +943,7 @@ const server = http.createServer(async (req, res) => {
 
     if (p === '/live.m3u8') return handlePlaylist(res);
     if (p === '/live/v.m3u8') return handleVariant(res);
-    if (p.startsWith('/live/s/')) return handleSegment(req, res, decodeURIComponent(p.slice('/live/s/'.length)));
+    if (p.startsWith('/live/s/')) return handleSegment(res, decodeURIComponent(p.slice('/live/s/'.length)));
 
     if (p === '/healthz') {
       const st = await getStatus();
