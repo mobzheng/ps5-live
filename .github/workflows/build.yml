@@ -102,8 +102,11 @@ jobs:
 
       - name: 构建引擎（arm64 + x64）
         run: |
-          NODE_BIN=node-v*-darwin-arm64/bin/node MEDIAMTX_PATH=assets/mediamtx-darwin-arm64 OUT_NAME=engine-arm64 node tools/build-engine.mjs
-          NODE_BIN=node-v*-darwin-x64/bin/node MEDIAMTX_PATH=assets/mediamtx-darwin-amd64 OUT_NAME=engine-x64 node tools/build-engine.mjs
+          ARM64_NODE=$(ls -d node-v*-darwin-arm64)/bin/node
+          X64_NODE=$(ls -d node-v*-darwin-x64)/bin/node
+          "$ARM64_NODE" --version
+          NODE_BIN="$ARM64_NODE" MEDIAMTX_PATH=assets/mediamtx-darwin-arm64 OUT_NAME=engine-arm64 "$ARM64_NODE" tools/build-engine.mjs
+          NODE_BIN="$X64_NODE" MEDIAMTX_PATH=assets/mediamtx-darwin-amd64 OUT_NAME=engine-x64 "$ARM64_NODE" tools/build-engine.mjs
 
       - name: 打包 .app（arm64 + x64）
         run: |
